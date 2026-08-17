@@ -1,7 +1,10 @@
 import { env } from 'cloudflare:workers'
 import { runInDurableObject } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
-
+import {
+  CURRENT_STORE_SCHEMA_VERSION,
+  migrateStoreSchema
+} from '../src/durable-objects/store-schema'
 async function initializeStore(storeId: string) {
   const stub = env.STORE_DO.getByName(storeId)
 
@@ -19,6 +22,81 @@ async function initializeStore(storeId: string) {
 }
 
 describe('StoreDurableObject SQLite', () => {
+  it('rejects a store schema newer than the running code', async () => {
+  const stub = await initializeStore(
+    'test-store-newer-schema'
+  )
+
+  await runInDurableObject(
+    stub,
+    async (_instance, state) => {
+      state.storage.sql.exec(`
+        UPDATE system_metadata
+        SET value = '999'
+        WHERE key = 'schema_version'
+      `)
+
+      expect(() => {
+        migrateStoreSchema(state.storage)
+      }).toThrow(
+        'unsupported_store_schema_version'
+      )
+    }
+  )
+})
+  it('runs store schema migration idempotently', async () => {
+    const stub = await initializeStore(
+      'test-store-schema-idempotent'
+    )
+
+    await runInDurableObject(
+      stub,
+      async (_instance, state) => {
+        migrateStoreSchema(state.storage)
+        migrateStoreSchema(state.storage)
+
+        const rows = state.storage.sql
+          .exec<{
+            key: string
+            value: string
+          }>(`
+            SELECT key, value
+            FROM system_metadata
+            WHERE key = 'schema_version'
+          `)
+          .toArray()
+
+        expect(rows).toHaveLength(1)
+
+        expect(Number(rows[0].value)).toBe(
+          CURRENT_STORE_SCHEMA_VERSION
+        )
+      }
+    )
+  })
+  it('initializes a fresh store at the current schema version', async () => {
+    const stub = await initializeStore(
+      'test-store-schema-version'
+    )
+
+    await runInDurableObject(
+      stub,
+      async (_instance, state) => {
+        const row = state.storage.sql
+          .exec<{ value: string }>(`
+            SELECT value
+            FROM system_metadata
+            WHERE key = 'schema_version'
+            LIMIT 1
+          `)
+          .toArray()[0]
+
+        expect(Number(row.value)).toBe(
+          CURRENT_STORE_SCHEMA_VERSION
+        )
+      }
+    )
+  })
   it('initializes and persists store identity', async () => {
     const storeId = 'test-store-identity'
     const stub = await initializeStore(storeId)

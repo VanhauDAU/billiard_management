@@ -1,9 +1,10 @@
 import { DurableObject } from 'cloudflare:workers'
+import { migrateStoreSchema } from './store-schema'
+
 type MetadataRow = {
   key: string
   value: string
 }
-
 export class StoreDurableObject extends DurableObject {
   private readonly sql: SqlStorage
 
@@ -11,24 +12,9 @@ export class StoreDurableObject extends DurableObject {
     super(ctx, env)
 
     this.sql = ctx.storage.sql
+    
+    migrateStoreSchema(ctx.storage)
 
-    this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS system_metadata (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
-    this.sql.exec(`
-      INSERT OR IGNORE INTO system_metadata (
-        key,
-        value
-      )
-      VALUES (
-        'schema_version',
-        '1'
-      )
-    `)
   }
 
   private ensureStoreIdentity(storeId: string): void {
