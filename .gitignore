@@ -1,0 +1,29 @@
+cat > .gitignore <<'EOF'
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+out/
+
+# Environment
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Cloudflare
+.wrangler/
+
+# Coverage / logs
+coverage/
+*.log
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.db
+
+# macOS
+.DS_Store
+EOF
