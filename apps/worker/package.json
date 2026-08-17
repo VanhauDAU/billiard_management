@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@billiards/contracts": "workspace:*",
     "hono": "^4.13.2"
   },
   "devDependencies": {

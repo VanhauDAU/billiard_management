@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { ApiHealthResponse } from '@billiards/contracts'
 export { StoreDurableObject } from './durable-objects/store-durable-object'
 const app = new Hono<{ Bindings: CloudflareBindings }>()
 
@@ -11,12 +12,13 @@ app.get('/', (c) => {
 })
 
 app.get('/api/health', (c) => {
-  return c.json({
+  const response: ApiHealthResponse = {
     ok: true,
     service: 'billiards-api'
-  })
-})
+  }
 
+  return c.json(response)
+})
 app.get('/api/system/db-health', async (c) => {
   try {
     const migration = await c.env.DB
