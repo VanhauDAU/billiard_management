@@ -144,7 +144,8 @@ CREATE TABLE memberships (
         ON DELETE RESTRICT,
 
     UNIQUE (tenant_id, id),
-    UNIQUE (branch_id, user_id)
+    UNIQUE (branch_id, user_id),
+    UNIQUE (tenant_id, id, branch_id, user_id)
 );
 
 CREATE INDEX idx_memberships_branch_status
@@ -216,7 +217,9 @@ CREATE TABLE devices (
         ON DELETE RESTRICT,
 
     UNIQUE (tenant_id, id),
-    UNIQUE (tenant_id, installation_id)
+    UNIQUE (tenant_id, installation_id),
+    UNIQUE (tenant_id, id, branch_id)
+    
 );
 
 CREATE INDEX idx_devices_branch_status
@@ -261,12 +264,30 @@ CREATE TABLE auth_sessions (
         REFERENCES users(tenant_id, id)
         ON DELETE RESTRICT,
 
-    FOREIGN KEY (tenant_id, membership_id)
-        REFERENCES memberships(tenant_id, id)
+    FOREIGN KEY (
+        tenant_id,
+        membership_id,
+        branch_id,
+        user_id
+    )
+        REFERENCES memberships(
+            tenant_id,
+            id,
+            branch_id,
+            user_id
+        )
         ON DELETE RESTRICT,
 
-    FOREIGN KEY (tenant_id, device_id)
-        REFERENCES devices(tenant_id, id)
+    FOREIGN KEY (
+        tenant_id,
+        device_id,
+        branch_id
+    )
+        REFERENCES devices(
+            tenant_id,
+            id,
+            branch_id
+        )
         ON DELETE RESTRICT,
 
     UNIQUE (session_token_hash)
