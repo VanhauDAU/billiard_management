@@ -1,20 +1,19 @@
 {
-  "name": "billiard_management",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "billiard-management",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev:desktop": "pnpm --filter @billiards/desktop dev",
+    "dev:worker": "pnpm --filter ./apps/worker dev",
+    "build:desktop": "pnpm --filter @billiards/desktop build",
+    "typecheck:desktop": "pnpm --filter @billiards/desktop typecheck"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
       "version": "^11.22.0",
       "onFail": "download"
     }
-  },
-  "type": "module"
+  }
 }
