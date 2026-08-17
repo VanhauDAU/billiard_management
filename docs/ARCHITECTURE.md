@@ -2,19 +2,22 @@
 
 Cập nhật: **2026-08-18**
 
-## Mục tiêu
+> Quyết định mới: V1 không còn mô hình `branch`. Một `Store` là một cửa hàng billiards tại một địa điểm vật lý và đồng thời là tenant boundary của hệ thống.
 
-Hệ thống quản lý billiards phải đáp ứng đồng thời:
+Scope nghiệp vụ đã khóa tại [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
 
-- POS desktop chạy ổn định tại cửa hàng.
-- Quản lý trên smartphone ở giai đoạn sau.
-- Có backend cloud để quản lý tenant/branch/user/device và đồng bộ.
-- Có đường tiến hóa tới offline-first mà không phải viết lại command semantics.
-- Có thể cập nhật desktop từ xa sau này.
+## 1. Mục tiêu
 
-Kiến trúc hiện tại tách **control plane** và **operational data plane**.
+Hệ thống phải đáp ứng:
 
-## Sơ đồ tổng thể
+- POS desktop chạy ổn định tại cửa hàng, ưu tiên Windows khi triển khai.
+- Mobile PWA có thể thao tác đầy đủ như POS ở milestone sau.
+- Backend cloud để xác thực, quản lý Store/user/device và đồng bộ.
+- Operational state có single-writer boundary rõ ràng.
+- Có đường tiến hóa tới offline-first mà không viết lại command semantics.
+- Có printing 80mm và remote desktop update ở các milestone sau.
+
+## 2. Sơ đồ tổng thể mới
 
 ```text
 ┌─────────────────────────┐          ┌─────────────────────────┐
@@ -32,20 +35,37 @@ Kiến trúc hiện tại tách **control plane** và **operational data plane**
                   ┌─────────────┴─────────────┐
                   ▼                           ▼
        ┌────────────────────┐       ┌────────────────────────┐
-       │ D1 Control Plane   │       │ Branch Durable Object  │
-       │ tenant/user/branch │       │ one object / branch    │
-       │ membership/device  │       │ SQLite operational DB  │
-       │ auth/session       │       └───────────┬────────────┘
-       └────────────────────┘                   │
+       │ D1 Control Plane   │       │ Store Durable Object   │
+       │ store/user/role    │       │ one object / Store     │
+       │ device/auth        │       │ SQLite operational DB  │
+       └────────────────────┘       └───────────┬────────────┘
+                                               │
                                                ▼
-                                   tables / sessions / bills
-                                   products / payments
-                                   commands / events
+                                  tables / pricing / sessions
+                                  products / bills / payments
+                                  commands / events / print refs
 ```
 
-## Desktop process boundary
+Không còn:
 
-Electron được chia thành ba vùng:
+- `branches`,
+- `branch_id`,
+- `branch_registry`,
+- `BRANCH_DO`,
+- `BranchDurableObject`,
+- chọn/chuyển branch trong UI.
+
+## 3. Store là tenant boundary
+
+Một Store = một cửa hàng vật lý.
+
+Trong UI/domain dùng từ `Store` / `Cửa hàng`. Có thể xem Store là tenant kỹ thuật, nhưng không cần expose khái niệm tenant cho người dùng cuối.
+
+Dữ liệu của Store A không được đọc/ghi nhầm sang Store B.
+
+Nếu sau này hỗ trợ chuỗi nhiều địa điểm, đó là capability mới. Không giữ branch trong V1 chỉ để dự phòng.
+
+## 4. Desktop process boundary
 
 ```text
 Renderer (React)
@@ -60,88 +80,247 @@ Main Process
       │
       ├── HTTP/backend client
       ├── future local SQLite
-      ├── future printing
-      ├── future sync/outbox
-      ├── future updater
+      ├── printing
+      ├── sync/outbox
+      ├── updater
       └── secure storage
 ```
 
 Nguyên tắc:
 
 - Renderer không có Node integration.
-- Renderer không được expose `ipcRenderer` trực tiếp.
+- Renderer không expose `ipcRenderer` trực tiếp.
 - Preload chỉ expose API hẹp, typed.
-- Main process là nơi phù hợp cho network orchestration, local storage, printing và updater.
-- Navigation/open-external phải được kiểm soát ở main process.
+- Main process quản lý network orchestration, local storage, printing và updater.
+- Navigation/open-external được kiểm soát ở main process.
 
-## Control plane - D1
+## 5. D1 Control Plane - target model
 
-D1 hiện sở hữu các loại dữ liệu mang tính SaaS/control:
+Migration hiện tại vẫn chứa branch và sẽ được refactor trước remote.
 
-- `tenants`
-- `branches`
-- `users`
-- `memberships`
-- `devices`
-- `auth_sessions`
-- `branch_registry`
-
-D1 **không** phải operational database cho hoạt động realtime của bàn billiards.
-
-Không đặt các bảng sau vào D1 nếu không có quyết định kiến trúc mới:
-
-- billiards tables,
-- table sessions,
-- bills,
-- bill items,
-- products vận hành theo branch,
-- payments,
-- pricing timeline,
-- command processing state của branch.
-
-## Branch Durable Object - data plane
-
-Mục tiêu tiếp theo là một Durable Object cho mỗi branch.
-
-Định danh dự kiến:
+Target D1 mới:
 
 ```text
-branchId
-  ↓
-BRANCH_DO.idFromName(branchId)
-  ↓
-BranchDurableObject
+stores
+users
+store_memberships
+roles
+role_permissions
+devices
+auth_sessions
+store_registry
 ```
 
-Mỗi Branch DO sở hữu SQLite operational state của đúng một branch.
+### `stores`
 
-Lợi ích kiến trúc mong muốn:
+Metadata của cửa hàng:
 
-- single-writer boundary rõ cho operational state,
-- transaction cục bộ theo branch,
-- realtime connection có nơi hội tụ,
-- command idempotency dễ enforce,
-- giảm conflict write giữa nhiều client.
+- tên,
+- slug/code,
+- địa chỉ,
+- số điện thoại,
+- timezone,
+- locale,
+- currency,
+- trạng thái,
+- cấu hình thông tin nhận chuyển khoản/QR ở mức phù hợp.
 
-Trước khi thêm nghiệp vụ thật, DO phải pass spike:
+### User / membership / permission
+
+Các role mặc định có thể gồm Owner/Manager/Cashier/Staff nhưng permission model không hard-code theo bốn tên này.
+
+Owner có thể cấu hình role/permission linh hoạt trong phạm vi capability allowlist của hệ thống.
+
+Permission được kiểm tra server-side; UI chỉ ẩn/disable để hỗ trợ trải nghiệm, không phải security boundary duy nhất.
+
+### Device
+
+Mỗi thiết bị thuộc một Store.
+
+Desktop và Mobile đều là client của Store; Mobile không phải branch riêng.
+
+### Auth session
+
+Session gắn tối thiểu với:
+
+```text
+store + user + membership/role context + device
+```
+
+Không lưu raw session token.
+
+PIN credential được thiết kế cùng AuthGate, rate limiting và lockout; không nhét tùy tiện vào `users`.
+
+### Store registry
+
+Dùng để map Store tới operational data-plane identity nếu cần metadata/provisioning state cho `STORE_DO`.
+
+## 6. Store Durable Object - operational data plane
+
+Target:
+
+```text
+storeId
+  ↓
+STORE_DO.idFromName(storeId)
+  ↓
+StoreDurableObject
+  ↓
+SQLite operational database
+```
+
+Một Store có đúng một operational single-writer boundary.
+
+Lợi ích:
+
+- transaction cục bộ cho table/session/bill/payment,
+- command idempotency rõ,
+- realtime connection có điểm hội tụ,
+- desktop/mobile không ghi trực tiếp vào database,
+- dễ cô lập dữ liệu giữa các Store.
+
+Trước nghiệp vụ thật, DO phải pass spike:
 
 - initialize SQLite schema,
 - read/write metadata,
-- transaction rollback/commit smoke test,
-- branch identity không bị lẫn giữa hai DO khác nhau.
+- Store identity không lẫn giữa hai DO,
+- transaction commit/rollback smoke test.
 
-## Command model
+## 7. Operational entities dự kiến
 
-Mọi mutation nghiệp vụ từ M1 nên đi qua command semantics.
+SQLite trong Store DO sẽ tiến hóa theo migration riêng, dự kiến gồm:
 
-Hướng dự kiến:
+```text
+table_types
+billiard_tables
+pricing_policies
+pricing_rules
+table_sessions
+time_adjustments
+categories
+products
+bills
+bill_items
+payments
+table_transfers
+bill_merges
+processed_commands
+domain_events
+print_templates
+print_template_versions
+print_jobs
+```
+
+Đây là target domain map, không có nghĩa tất cả được tạo ngay trong migration đầu tiên của DO.
+
+## 8. Loại bàn là dữ liệu cấu hình
+
+Không dùng enum cứng cho `bàn líp`, `bàn lỗ`, ...
+
+`table_types` cho phép Owner tự tạo loại bàn và gắn pricing policy phù hợp.
+
+Một bàn cụ thể tham chiếu `table_type_id` và có thể có override cấu hình nếu V1 pricing cần.
+
+## 9. Pricing
+
+Pricing không hard-code một mức giá duy nhất.
+
+Target cho phép biểu diễn:
+
+- base hourly rate theo loại bàn,
+- time band,
+- ngày/nhóm ngày,
+- optional per-table override,
+- rounding/time policy.
+
+Khi phiên bắt đầu/được tính tiền, phải lưu đủ policy/version/snapshot cần thiết để thay đổi giá tương lai không làm sai lịch sử.
+
+Money lưu bằng integer minor/unit phù hợp với VND, không dùng floating-point cho tiền.
+
+## 10. Session, bill và time adjustment
+
+`TableSession` là nguồn sự thật cho thời gian chơi; timer UI chỉ là cách hiển thị.
+
+Điều chỉnh thời gian:
+
+- cần permission,
+- lý do bắt buộc,
+- actor bắt buộc,
+- audit delta hoặc before/after.
+
+Bill V1 gồm tiền bàn + sản phẩm, chưa có discount/surcharge.
+
+Giá sản phẩm phải snapshot vào bill item tại thời điểm bán.
+
+## 11. Chuyển bàn và gộp bill
+
+V1 có:
+
+- chuyển bàn,
+- gộp bill.
+
+V1 không có tách bill.
+
+Hai nghiệp vụ này phải đi qua command transaction, có audit và state transition rõ; không thực hiện bằng thao tác copy/delete ad-hoc.
+
+## 12. Thanh toán
+
+Phương thức V1:
+
+- cash,
+- bank_transfer.
+
+Payment completion phải transactionally finalize bill/session theo rule nghiệp vụ và trả bàn về trạng thái phù hợp.
+
+QR thanh toán là rendering concern dựa trên cấu hình chuyển khoản của Store; không phải một payment method thứ ba.
+
+## 13. Printing boundary
+
+Printing chạy main-side trên desktop.
+
+V1:
+
+- khổ 80mm,
+- template mặc định,
+- Owner chỉnh nội dung,
+- placeholder/block allowlist,
+- preview,
+- versioned template,
+- Windows driver/spooler integration.
+
+Ví dụ placeholder:
+
+```text
+{ten_cua_hang}
+{so_hoa_don}
+{ten_ban}
+{gio_vao}
+{gio_ra}
+{thoi_luong}
+{tong_tien_ban}
+{tong_hang_hoa}
+{tong_thanh_toan}
+{phuong_thuc_thanh_toan}
+{nhan_vien}
+{qr_thanh_toan}
+```
+
+Không cho arbitrary HTML/CSS/JavaScript trong V1 template editor.
+
+Preview và print dùng cùng template semantics.
+
+## 14. Command model
+
+Mọi mutation nghiệp vụ từ M1 đi qua command semantics:
 
 ```text
 Client intent
    ↓
 CommandEnvelope
    ↓
-Branch Durable Object
+Worker auth/permission boundary
+   ↓
+Store Durable Object
    ↓
 Idempotency check
    ↓
@@ -154,79 +333,48 @@ ProcessedCommand + DomainEvent
 Response / realtime propagation
 ```
 
-Không triển khai full event sourcing. Domain events dùng cho audit, realtime/sync và integration needs, trong khi current state vẫn được materialize trong SQLite.
+Không triển khai full event sourcing.
 
-Persistent local outbox của desktop chưa cần ở M1 online, nhưng command ID/idempotency semantics phải tồn tại từ đầu để M5 không buộc rewrite API.
+Current state vẫn materialize trong SQLite; events phục vụ audit/realtime/sync/integration.
 
-## Shared packages
+## 15. Shared packages
 
 ### `packages/contracts`
 
-Chỉ chứa contract dùng chung giữa Worker/Desktop/Mobile:
-
 - API request/response schemas,
-- command envelopes,
-- event envelopes,
-- enum/union contract,
-- runtime validation schemas khi thêm Zod.
-
-Không chứa React/Electron/Cloudflare implementation.
+- command/event envelopes,
+- runtime validation schema,
+- shared union/enum contract.
 
 ### `packages/domain`
 
-Chứa pure business rules:
-
 - money/time primitives,
-- pricing calculations,
-- bill/table-session state transitions,
-- validation không phụ thuộc transport/database.
-
-Không import React, Electron, Wrangler hoặc D1.
+- pricing,
+- table/session/bill state transitions,
+- transfer/merge rules,
+- pure validation.
 
 ### `packages/shared`
 
-Chứa pure utility thật sự generic. Không dùng `shared` như nơi đổ code không biết đặt đâu.
+Chỉ chứa utility thật sự generic.
 
-## Auth và session
+## 16. Mobile PWA
 
-Các nguyên tắc đã chốt ở foundation:
+Mobile sau này thao tác đầy đủ như POS theo permission:
 
-- Không lưu raw session token; chỉ lưu lookup/validation hash.
-- PIN credential chưa nằm trong migration 0001.
-- PIN hashing/rate limiting/lockout phải được thiết kế cùng AuthGate.
-- Session luôn phải gắn với tenant, branch, user, membership và device.
+- xem/mở bàn,
+- thêm món,
+- chuyển bàn,
+- gộp bill,
+- thanh toán,
+- xem hóa đơn/báo cáo,
+- quản lý phần được cấp quyền.
 
-### Invariant cần harden trước D1 remote
+Business rule không được duplicate riêng trong mobile.
 
-Database hiện đảm bảo các foreign key cùng tenant, nhưng cần chốt cách enforce mạnh hơn:
+## 17. Offline boundary
 
-```text
-session.membership
-  must belong to
-session.tenant + session.branch + session.user
-
-session.device
-  must belong to
-session.tenant + session.branch
-```
-
-Khuyến nghị enforce bằng composite unique/composite foreign key nếu D1/SQLite schema vẫn giữ model hiện tại.
-
-## Timestamp policy
-
-Các bảng D1 hiện dùng text timestamp và `CURRENT_TIMESTAMP` cho default create/update value.
-
-Lưu ý:
-
-- `DEFAULT CURRENT_TIMESTAMP` không tự update `updated_at` khi row thay đổi.
-- Repository/service layer phải set `updated_at` trong UPDATE.
-- Trước khi nhiều module bắt đầu dùng timestamp, cần thống nhất format UTC ở persistence và chỉ localize khi hiển thị.
-
-## Offline boundary
-
-Offline không được triển khai sớm hơn khi online command flow chưa ổn định.
-
-M5 dự kiến mới thêm:
+Offline triển khai sau khi online command flow ổn định:
 
 ```text
 Desktop local SQLite replica
@@ -235,29 +383,12 @@ Persistent command outbox
         +
 Sync cursor/protocol
         +
-Conflict/takeover matrix
+Conflict/takeover policy
 ```
 
-Điều này giữ M0/M1 đủ nhỏ nhưng vẫn tránh thiết kế API ngõ cụt.
+Store DO vẫn là authoritative cloud operational writer trong kiến trúc mục tiêu.
 
-## Printing boundary
-
-Printing chạy trong desktop main-side infrastructure, không trong renderer.
-
-MVP ưu tiên:
-
-- Windows driver/spooler,
-- print agent/service abstraction,
-- template cố định hoặc parameterized,
-- idempotent/retryable print jobs.
-
-Không xây drag/drop print-template builder ở MVP.
-
-## Update boundary
-
-Desktop binary và operational data phải tách rời.
-
-Định hướng sau:
+## 18. Update boundary
 
 ```text
 Mac/dev
@@ -268,20 +399,26 @@ CI Windows runner
   ↓
 electron-builder / NSIS
   ↓
-Release channel (GitHub Releases hoặc R2)
+Release channel
   ↓
 Windows POS updater
 ```
 
-Update không được xóa local database và không nên force restart trong lúc đang có active bill/session.
+Update app không được xóa local operational/cache database và không force restart giữa active session/bill.
 
-## Nguyên tắc không phá vỡ
+## 19. Quy tắc không phá vỡ
 
-1. D1 = control plane.
-2. Branch DO = operational single-writer boundary.
-3. Renderer không có quyền Node/Electron trực tiếp.
-4. Command semantics có từ M1.
-5. Offline persistence đến sau online vertical slice.
-6. Mobile đến sau desktop flow ổn định.
-7. Không đưa secret/raw auth credential vào client-visible state hoặc database tùy tiện.
-8. Schema production/pilot chỉ thay đổi bằng migration có review.
+1. V1 không có branch.
+2. Store = tenant/data isolation boundary.
+3. D1 = control plane.
+4. Store DO = operational single-writer boundary.
+5. Renderer không có Node/Electron trực tiếp.
+6. Permission được enforce server-side.
+7. Command semantics tồn tại từ M1.
+8. Money không dùng floating-point.
+9. Timer UI không phải nguồn sự thật của thời gian chơi.
+10. Giá lịch sử không bị thay đổi bởi cấu hình giá mới.
+11. Offline đến sau online vertical slice.
+12. Mobile dùng chung contracts/commands, không fork business logic.
+13. Production/pilot schema chỉ đổi qua migration được review.
+14. Không chạy arbitrary script/code trong print template.
