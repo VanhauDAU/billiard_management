@@ -6,8 +6,17 @@
   "scripts": {
     "dev:desktop": "pnpm --filter @billiards/desktop dev",
     "dev:worker": "pnpm --filter ./apps/worker dev",
+
     "build:desktop": "pnpm --filter @billiards/desktop build",
-    "typecheck:desktop": "pnpm --filter @billiards/desktop typecheck"
+
+    "typecheck:desktop": "pnpm --filter @billiards/desktop typecheck",
+    "typecheck:contracts": "pnpm --filter @billiards/contracts typecheck",
+    "typecheck:worker": "pnpm --dir apps/worker run typecheck",
+    "typecheck:worker:test": "pnpm --dir apps/worker run typecheck:test",
+
+    "test:worker": "pnpm --dir apps/worker test",
+
+    "ci": "pnpm typecheck:contracts && pnpm typecheck:worker && pnpm typecheck:worker:test && pnpm test:worker && pnpm build:desktop"
   },
   "devEngines": {
     "packageManager": {
