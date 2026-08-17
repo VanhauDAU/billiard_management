@@ -4,15 +4,19 @@ Cập nhật: **2026-08-18**
 
 ## Tổng quan
 
-Dự án đang ở **M0 - Foundation**. Phần nền desktop → Worker → D1 đã hoạt động. M0 chưa được xem là hoàn thành cho đến khi có Branch Durable Object spike, shared contracts tối thiểu và CI kiểm tra tự động.
+Dự án đang ở **M0 - Foundation**.
+
+Ngày 2026-08-18 đã chốt lại scope V1: **một Store = một cửa hàng vật lý; V1 không quản lý branch/chi nhánh**. Quyết định này đơn giản hóa domain nhưng làm cho migration control-plane hiện tại cần refactor trước khi tiếp tục.
 
 Ước lượng hiện tại:
 
-- **M0 Foundation:** khoảng **75%**.
+- **M0 Foundation:** khoảng **65%** sau khi tính lại theo kiến trúc Store mới.
 - **M1 Windows POS online:** chưa bắt đầu nghiệp vụ thật.
-- **Toàn bộ MVP đến pilot:** khoảng **10-15%** theo khối lượng, vì phần khó nhất vẫn là command model, nghiệp vụ bill/table/pricing, printing, realtime và offline/sync.
+- **Toàn bộ MVP đến pilot:** khoảng **10-15%** theo khối lượng.
 
-Các tỷ lệ trên là chỉ báo tiến độ kỹ thuật, không phải cam kết thời gian.
+Tỷ lệ chỉ là chỉ báo kỹ thuật, không phải cam kết thời gian.
+
+Scope V1 đã khóa: [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
 
 ## M0 - Foundation
 
@@ -25,126 +29,203 @@ Các tỷ lệ trên là chỉ báo tiến độ kỹ thuật, không phải cam
 | Worker/Hono local | ✅ Done | port 8787 |
 | Desktop → Worker HTTP | ✅ Done | main process quản lý request |
 | D1 database + binding | ✅ Done | `billiards-control-plane`, binding `DB` |
-| D1 migration system | ✅ Done | `0001_init_control_plane.sql` |
-| Control-plane schema local | ✅ Done | tenant/branch/user/membership/device/session/registry |
-| Local FK validation | ✅ Done | `PRAGMA foreign_key_check` đã pass trong quá trình setup |
+| D1 migration tooling | ✅ Done | Wrangler migrations chạy local được |
+| Branch-based migration 0001 | 🔴 Obsolete | đã test local nhưng không còn đúng domain mới |
+| Store-based control-plane schema | ⬜ Next | bỏ branch/branch_id/branch_registry |
 | Worker → D1 health query | ✅ Done | `/api/system/db-health` |
 | Worker TypeScript typecheck | ✅ Done | local `typescript` + `cf-typegen` |
 | Shared contracts | 🟡 Scaffold | package tồn tại nhưng chưa có contract thật |
-| Domain package | 🟡 Scaffold | package tồn tại nhưng chưa có business primitive thật |
-| Branch Durable Object | ⬜ Next | SQLite-backed DO / branch |
-| DO transaction smoke test | ⬜ Next | bắt buộc trước command infrastructure |
+| Domain package | 🟡 Scaffold | package tồn tại nhưng chưa có primitive nghiệp vụ |
+| Store Durable Object | ⬜ Pending | thay cho Branch DO |
+| Store DO SQLite smoke test | ⬜ Pending | read/write + transaction |
 | CI | ⬜ Pending | typecheck/build trên push/PR |
-| Remote D1 migration | ⬜ Pending | chỉ sau khi review migration 0001 |
+| Remote D1 migration | ⛔ Blocked | không chạy trước khi schema Store mới được review |
 
-### Gate để đóng M0
+## Quyết định domain mới
 
-M0 chỉ được đánh dấu hoàn thành khi đạt toàn bộ:
+Đã chốt:
 
-- `pnpm` install sạch từ clone mới.
-- Desktop typecheck/build pass.
-- Worker typecheck pass.
-- Worker health pass.
-- D1 health pass.
-- Branch DO health pass.
-- Branch DO SQLite read/write + transaction smoke test pass.
-- Shared health/command envelope contract đầu tiên nằm trong `packages/contracts`.
-- CI chạy tối thiểu desktop typecheck/build và worker typecheck.
+- V1 không có branch.
+- Store là tenant/data isolation boundary.
+- Loại bàn do Owner tự cấu hình: bàn líp, bàn lỗ, ... không hard-code enum.
+- Pricing do Owner cấu hình linh hoạt.
+- Có nhiều nhân viên, role/permission cấu hình được.
+- POS login bằng nhân viên + PIN.
+- Có điều chỉnh thời gian kèm permission/reason/audit.
+- Sản phẩm V1 không có tồn kho.
+- Bill V1 chưa có discount/surcharge.
+- Payment V1: cash + bank transfer.
+- Có chuyển bàn.
+- Có gộp bill.
+- Không có tách bill V1.
+- In hóa đơn 80mm, template có placeholder/block editor + preview.
+- Mobile PWA sau này thao tác đầy đủ như POS theo permission.
 
-## Review migration 0001 trước remote
+Chi tiết: [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
 
-Migration hiện tại phù hợp với mục tiêu control-plane, nhưng trước lần apply remote đầu tiên cần harden thêm tính nhất quán của `auth_sessions`.
+## Migration 0001 - trạng thái mới
 
-Hiện các foreign key đảm bảo session trỏ tới các entity cùng tenant, nhưng chưa ép database rằng:
+Migration hiện tại vẫn chứa:
 
-- `membership_id` thực sự thuộc đúng `branch_id` và `user_id` của session.
-- `device_id` thực sự thuộc đúng `branch_id` của session.
+- `branches`,
+- `branch_id`,
+- `branch_registry`,
+- composite foreign keys phục vụ branch consistency.
 
-Trước remote migration nên chọn một trong hai hướng:
+Các phần này **không còn phù hợp** với scope đã khóa.
 
-1. **Ưu tiên:** thêm composite unique keys + composite foreign keys để database enforce các invariant này.
-2. Hoặc ghi rõ invariant được enforce ở application layer và có integration test bắt buộc.
+Vì migration chưa được apply remote, bước tiếp theo là **rewrite `0001_init_control_plane.sql` ngay tại foundation**, không tạo migration 0002 chỉ để xóa thiết kế chưa từng lên remote.
 
-Vì migration `0001` chưa nên coi là immutable trước khi apply remote production/pilot, đây là thời điểm phù hợp để sửa.
+Target control-plane mới dự kiến:
 
-Ngoài ra, `updated_at` hiện dùng `DEFAULT CURRENT_TIMESTAMP`; SQLite/D1 không tự thay đổi giá trị này khi UPDATE. Repository/service layer sau này phải cập nhật `updated_at` rõ ràng.
+```text
+stores
+users
+store_memberships
+roles
+role_permissions
+devices
+auth_sessions
+store_registry
+```
+
+Sau khi rewrite phải:
+
+1. reset local D1 state,
+2. apply `0001` từ đầu,
+3. chạy `PRAGMA foreign_key_check`,
+4. test Store isolation/auth invariants,
+5. test `/api/system/db-health`,
+6. typecheck Worker,
+7. chỉ khi review pass mới cân nhắc remote.
+
+## Gate để đóng M0
+
+M0 chỉ hoàn thành khi:
+
+- clone/install sạch,
+- desktop typecheck/build pass,
+- worker typecheck pass,
+- Worker health pass,
+- D1 Store-based migration local pass,
+- D1 health pass,
+- Store DO health pass,
+- Store DO SQLite read/write + transaction smoke test pass,
+- shared contract đầu tiên tồn tại thật,
+- CI chạy tối thiểu desktop typecheck/build + worker typecheck.
 
 ## M1 - Windows POS online
 
-Chỉ bắt đầu sau khi M0 đóng.
-
-Vertical slice mục tiêu:
+Vertical slice đầu tiên:
 
 ```text
-Login
+Thiết bị thuộc Store
   ↓
-Branch context
+Nhân viên + PIN
+  ↓
+Permission context
   ↓
 Danh sách bàn
   ↓
 Mở bàn
   ↓
+Tính giờ
+  ↓
 Thêm sản phẩm
   ↓
-Tính tiền
+Thanh toán cash/bank transfer
   ↓
-Thanh toán tiền mặt
+Đóng bill/session
 ```
 
-M1 phải dùng command semantics ngay từ đầu, dù persistent offline outbox chưa triển khai.
+M1 phải dùng command semantics ngay từ đầu dù offline outbox chưa triển khai.
 
 ## M2 - Business completeness
 
-Dự kiến gồm:
+Dự kiến hoàn thiện các nghiệp vụ V1 còn lại:
 
-- pricing segments / giờ chơi,
-- điều chỉnh thời gian,
-- chuyển/gộp nghiệp vụ cần thiết,
-- catalog sản phẩm/danh mục,
+- table types cấu hình,
+- pricing rules linh hoạt,
+- time adjustments + audit,
+- chuyển bàn,
+- gộp bill,
+- catalog/danh mục đầy đủ,
 - bill lifecycle đầy đủ,
-- permissions/roles thực tế,
-- audit/domain events cần thiết.
+- role/permission management,
+- domain events/audit cần thiết.
+
+Không có tồn kho, discount/surcharge hoặc split bill trong V1 hiện tại.
 
 ## M3 - Printing
 
-- Windows print agent.
-- Driver/spooler integration.
-- Template cố định/parameterized cho MVP.
-- Retry/idempotency cho print job.
+V1 printing scope:
 
-Không xây drag-drop print designer ở MVP.
+- 80mm,
+- Windows print agent/driver/spooler,
+- template mặc định,
+- Owner chỉnh nội dung qua allowlisted placeholder/block editor,
+- `{qr_thanh_toan}` và các placeholder dữ liệu,
+- preview dùng cùng template semantics với print,
+- template versioning,
+- retry/idempotency cho print job.
+
+Không có arbitrary HTML/CSS/JavaScript hoặc drag-drop designer tự do trong V1.
 
 ## M4 - Mobile PWA + realtime
 
-- PWA quản lý trên điện thoại.
-- Shared contracts với desktop.
-- Realtime branch state qua Worker/DO.
-- Không để mobile trở thành nguồn write logic riêng biệt.
+Mobile đã được chốt là **full operational client theo permission**, không chỉ viewer.
+
+Mục tiêu:
+
+- trạng thái bàn realtime,
+- mở bàn,
+- thêm sản phẩm,
+- chuyển bàn,
+- gộp bill,
+- thanh toán,
+- xem hóa đơn,
+- xem báo cáo/quản lý theo permission.
+
+Mobile dùng cùng contracts/commands/server business rules, không fork logic riêng.
 
 ## M5 - Offline/sync/takeover
 
 - Desktop local SQLite replica.
 - Persistent command outbox.
-- Sync protocol.
-- Conflict/takeover rules.
+- Sync cursor/protocol.
+- Conflict/takeover policy.
 - Clock/boot-anchor handling.
 - Recovery sau crash/network loss.
 
-## M6 - Report + pilot
+## M6 - Reports + pilot
 
-- Báo cáo vận hành cần thiết.
-- Backup/restore checks.
-- Pilot tại cửa hàng thật.
-- Telemetry/observability tối thiểu.
-- Windows installer/update channel.
+Báo cáo bắt buộc V1:
+
+- doanh thu hôm nay,
+- doanh thu theo ngày,
+- doanh thu tiền bàn,
+- doanh thu hàng hóa,
+- số lượt bàn,
+- thời gian sử dụng bàn,
+- sản phẩm bán chạy,
+- hóa đơn,
+- cash/bank-transfer breakdown.
+
+Pilot còn cần:
+
+- backup/restore checks,
+- observability tối thiểu,
+- Windows installer/update channel,
+- test cửa hàng thật.
 
 ## Việc tiếp theo
 
-Thứ tự khuyến nghị:
+Thứ tự mới:
 
-1. Review và harden migration `0001` trước remote.
-2. Tạo Branch Durable Object spike.
-3. Tạo shared system-health/command contracts.
-4. Thêm CI.
-5. Đóng M0.
-6. Bắt đầu M1 vertical slice.
+1. Rewrite migration `0001` theo Store model, loại bỏ branch hoàn toàn.
+2. Reset và test D1 local lại.
+3. Tạo Store Durable Object spike.
+4. Tạo shared health/command contracts đầu tiên.
+5. Thêm CI.
+6. Đóng M0.
+7. Bắt đầu M1 vertical slice.
