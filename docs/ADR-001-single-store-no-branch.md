@@ -1,6 +1,6 @@
 # ADR-001: Single Store, No Branch in V1
 
-- Status: **Accepted**
+- Status: **Accepted and implemented in M0**
 - Date: **2026-08-18**
 
 ## Context
@@ -28,7 +28,7 @@ Sau khi rà lại nghiệp vụ thực tế, sản phẩm V1 được xác nhậ
 - Durable Object routing,
 - offline/sync sau này.
 
-Migration branch-based mới chỉ được chạy local, chưa apply D1 remote.
+Branch-based migration chỉ từng được chạy local và đã được thay thế trước khi có remote production data.
 
 ## Decision
 
@@ -38,22 +38,35 @@ V1 loại bỏ branch hoàn toàn.
 Store = tenant boundary
 ```
 
-Target architecture:
+Kiến trúc đã triển khai ở foundation:
 
 ```text
 Store
   ├── users / roles / devices / auth in D1 control plane
   └── StoreDurableObject
-         └── operational SQLite
+         └── SQLite operational data plane
 ```
 
-Operational DO được route bằng:
+Operational DO được route theo Store identity:
 
 ```text
 STORE_DO.idFromName(storeId)
 ```
 
 Không tồn tại branch selector/context trong product V1.
+
+## Implementation status
+
+Quyết định này đã được hiện thực hóa trong M0:
+
+- `0001_init_control_plane.sql` đã được rewrite thành Store-based schema.
+- `branches`, `branch_id`, `branch_registry`, `BRANCH_DO` và `BranchDurableObject` không còn thuộc architecture hiện hành.
+- D1 control plane hiện có `stores`, `users`, `roles`, `permission_catalog`, `role_permissions`, `store_memberships`, `devices`, `auth_sessions`, `store_registry`.
+- `STORE_DO` và `StoreDurableObject` đã được tạo với SQLite storage.
+- Store DO lưu và khóa `store_id` để ngăn một DO bị tái sử dụng cho Store khác.
+- Store DO có schema migration/versioning runner riêng.
+- Automated tests đã kiểm tra read/write, transaction commit/rollback, isolation, identity lock và migration guards.
+- Shared contracts và CI quality gate đã được thêm trước khi đóng M0.
 
 ## Consequences
 
@@ -67,19 +80,18 @@ Không tồn tại branch selector/context trong product V1.
 - Giảm số lớp routing và conflict source.
 - Phù hợp scope thực tế thay vì over-engineering cho tương lai chưa xác nhận.
 
-### Required refactor
+### Ongoing requirements
 
-Migration `0001_init_control_plane.sql` hiện tại phải rewrite trước remote:
+Từ M1 trở đi:
 
-- xóa `branches`,
-- xóa mọi `branch_id`,
-- xóa `branch_registry`,
-- đổi membership/device/session sang Store-scoped,
-- tạo Store registry nếu cần provision/data-plane metadata.
+- Mọi request nghiệp vụ phải resolve Store context đáng tin cậy ở server side.
+- Device phải thuộc Store trước khi được dùng làm execution context.
+- Employee/Auth session/permission đều Store-scoped.
+- Mutation nghiệp vụ route tới đúng Store DO.
+- Không cho client tự khai `storeId` rồi mặc nhiên tin cậy cho mutation.
+- Schema production/pilot chỉ đổi qua migration được review.
 
-Branch DO chưa được triển khai nên không có data-plane migration cần chuyển đổi.
-
-### Future multi-store
+## Future multi-store
 
 Nếu sau này một chủ sở hữu cần quản lý nhiều địa điểm, không hồi sinh branch một cách tự động.
 

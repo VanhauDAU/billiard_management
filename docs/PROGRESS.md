@@ -4,17 +4,13 @@ Cập nhật: **2026-08-18**
 
 ## Tổng quan
 
-Dự án đang ở **M0 - Foundation**.
+Dự án đã hoàn thành **M0 - Foundation** và bắt đầu **M1 - Windows POS online**.
 
-Ngày 2026-08-18 đã chốt lại scope V1: **một Store = một cửa hàng vật lý; V1 không quản lý branch/chi nhánh**. Quyết định này đơn giản hóa domain nhưng làm cho migration control-plane hiện tại cần refactor trước khi tiếp tục.
+Trạng thái hiện tại:
 
-Ước lượng hiện tại:
-
-- **M0 Foundation:** khoảng **65%** sau khi tính lại theo kiến trúc Store mới.
-- **M1 Windows POS online:** chưa bắt đầu nghiệp vụ thật.
-- **Toàn bộ MVP đến pilot:** khoảng **10-15%** theo khối lượng.
-
-Tỷ lệ chỉ là chỉ báo kỹ thuật, không phải cam kết thời gian.
+- **M0 Foundation:** **100% theo gate kỹ thuật đã chốt**.
+- **M1 Windows POS online:** bắt đầu vertical slice đầu tiên.
+- **MVP đến pilot:** còn phần lớn nghiệp vụ, printing, mobile và offline/sync.
 
 Scope V1 đã khóa: [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
 
@@ -30,93 +26,62 @@ Scope V1 đã khóa: [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
 | Desktop → Worker HTTP | ✅ Done | main process quản lý request |
 | D1 database + binding | ✅ Done | `billiards-control-plane`, binding `DB` |
 | D1 migration tooling | ✅ Done | Wrangler migrations chạy local được |
-| Branch-based migration 0001 | 🔴 Obsolete | đã test local nhưng không còn đúng domain mới |
-| Store-based control-plane schema | ⬜ Next | bỏ branch/branch_id/branch_registry |
+| Store-based control-plane schema | ✅ Done | `0001_init_control_plane.sql`, không còn branch model |
 | Worker → D1 health query | ✅ Done | `/api/system/db-health` |
-| Worker TypeScript typecheck | ✅ Done | local `typescript` + `cf-typegen` |
-| Shared contracts | 🟡 Scaffold | package tồn tại nhưng chưa có contract thật |
-| Domain package | 🟡 Scaffold | package tồn tại nhưng chưa có primitive nghiệp vụ |
-| Store Durable Object | ⬜ Pending | thay cho Branch DO |
-| Store DO SQLite smoke test | ⬜ Pending | read/write + transaction |
-| CI | ⬜ Pending | typecheck/build trên push/PR |
-| Remote D1 migration | ⛔ Blocked | không chạy trước khi schema Store mới được review |
+| Worker TypeScript typecheck | ✅ Done | production + test typecheck tách riêng |
+| Store Durable Object | ✅ Done | `STORE_DO`, SQLite-backed, một DO / Store |
+| Store DO health | ✅ Done | route qua Store ID + identity guard |
+| Store DO SQLite smoke tests | ✅ Done | read/write, transaction commit/rollback, Store isolation |
+| Store schema migration runner | ✅ Done | versioned, idempotent, reject unsupported newer schema |
+| Shared contracts | ✅ Done | API health + `CommandEnvelope` |
+| Domain package | 🟡 Scaffold | bắt đầu có business primitives từ M1 |
+| CI | ✅ Done | frozen install + contracts/Worker typecheck + Worker tests + Desktop build |
+| Remote D1 migration/deploy | ⏸ Deferred | không phải gate M0; thực hiện khi chuẩn bị remote/pilot |
 
-## Quyết định domain mới
+## Bằng chứng đóng M0
 
-Đã chốt:
+Foundation đã đạt các gate chính:
 
-- V1 không có branch.
-- Store là tenant/data isolation boundary.
-- Loại bàn do Owner tự cấu hình: bàn líp, bàn lỗ, ... không hard-code enum.
-- Pricing do Owner cấu hình linh hoạt.
-- Có nhiều nhân viên, role/permission cấu hình được.
-- POS login bằng nhân viên + PIN.
-- Có điều chỉnh thời gian kèm permission/reason/audit.
-- Sản phẩm V1 không có tồn kho.
-- Bill V1 chưa có discount/surcharge.
-- Payment V1: cash + bank transfer.
-- Có chuyển bàn.
-- Có gộp bill.
-- Không có tách bill V1.
-- In hóa đơn 80mm, template có placeholder/block editor + preview.
-- Mobile PWA sau này thao tác đầy đủ như POS theo permission.
+1. Store-based D1 migration thay hoàn toàn branch model trước khi có remote production data.
+2. `StoreDurableObject` chạy SQLite và giữ Store identity bất biến.
+3. Automated tests bao phủ 9 nhóm kiểm tra: schema version, migration idempotency/newer-version guard, identity, read/write, commit, rollback, isolation và identity lock.
+4. Shared `@billiards/contracts` không còn là scaffold rỗng; Worker đã import contract thật.
+5. Contracts, Worker production code và Worker tests đều typecheck độc lập.
+6. GitHub Actions CI chạy trên push/PR và đã xanh sau khi thêm monorepo quality gate.
+7. Desktop build vẫn nằm trong CI gate nên foundation backend không được phép làm hỏng Electron app.
 
-Chi tiết: [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
+M0 không yêu cầu deploy production hoặc apply D1 remote. Deployment/release sẽ có gate riêng khi bước vào môi trường remote/pilot.
 
-## Migration 0001 - trạng thái mới
-
-Migration hiện tại vẫn chứa:
-
-- `branches`,
-- `branch_id`,
-- `branch_registry`,
-- composite foreign keys phục vụ branch consistency.
-
-Các phần này **không còn phù hợp** với scope đã khóa.
-
-Vì migration chưa được apply remote, bước tiếp theo là **rewrite `0001_init_control_plane.sql` ngay tại foundation**, không tạo migration 0002 chỉ để xóa thiết kế chưa từng lên remote.
-
-Target control-plane mới dự kiến:
+## Kiến trúc foundation đã chốt
 
 ```text
-stores
-users
-store_memberships
-roles
-role_permissions
-devices
-auth_sessions
-store_registry
+Desktop / Mobile
+       │
+       ▼
+Cloudflare Worker / Hono
+       │
+       ├──────────────► D1 Control Plane
+       │                Store/User/Role/Device/Auth
+       │
+       └──────────────► Store Durable Object
+                        one SQLite DB / Store
+                        operational single writer
 ```
 
-Sau khi rewrite phải:
+Các nguyên tắc foundation:
 
-1. reset local D1 state,
-2. apply `0001` từ đầu,
-3. chạy `PRAGMA foreign_key_check`,
-4. test Store isolation/auth invariants,
-5. test `/api/system/db-health`,
-6. typecheck Worker,
-7. chỉ khi review pass mới cân nhắc remote.
+- V1 không có branch.
+- Store là tenant/data-isolation boundary.
+- D1 chứa control/auth/device/permission metadata.
+- Operational billiards state nằm trong Store DO.
+- Mọi mutation nghiệp vụ M1 dùng command semantics.
+- Offline local SQLite/outbox đến sau online vertical slice.
 
-## Gate để đóng M0
-
-M0 chỉ hoàn thành khi:
-
-- clone/install sạch,
-- desktop typecheck/build pass,
-- worker typecheck pass,
-- Worker health pass,
-- D1 Store-based migration local pass,
-- D1 health pass,
-- Store DO health pass,
-- Store DO SQLite read/write + transaction smoke test pass,
-- shared contract đầu tiên tồn tại thật,
-- CI chạy tối thiểu desktop typecheck/build + worker typecheck.
+Chi tiết: [`ARCHITECTURE.md`](ARCHITECTURE.md) và [`ADR-001-single-store-no-branch.md`](ADR-001-single-store-no-branch.md).
 
 ## M1 - Windows POS online
 
-Vertical slice đầu tiên:
+Vertical slice mục tiêu:
 
 ```text
 Thiết bị thuộc Store
@@ -136,32 +101,93 @@ Thêm sản phẩm
 Thanh toán cash/bank transfer
   ↓
 Đóng bill/session
+  ↓
+Bàn trở về available
 ```
 
-M1 phải dùng command semantics ngay từ đầu dù offline outbox chưa triển khai.
+### M1.1 - Device identity + Store execution context
+
+Đây là bước code tiếp theo.
+
+Mục tiêu:
+
+```text
+Desktop request
+   │
+   │ device identity
+   ▼
+Worker
+   │
+   ├── tra D1 `devices`
+   ├── xác định device còn active hay không
+   ├── lấy Store đáng tin cậy từ server-side data
+   └── tạo request execution context
+           │
+           ▼
+      StoreDurableObject
+```
+
+Guardrail:
+
+- Client không được tự khai `storeId` rồi mặc nhiên được tin cậy cho mutation.
+- Device phải thuộc Store và ở trạng thái hợp lệ.
+- Store context được resolve ở Worker trước khi route tới Store DO.
+- Context này sẽ là nền cho Employee + PIN và permission enforcement ở bước sau.
+
+### M1.2 - Employee + PIN authentication
+
+Sau Device context:
+
+- danh sách nhân viên hợp lệ của Store,
+- PIN 4-6 số,
+- PIN không lưu plaintext,
+- credential/AuthGate/rate-limit/lockout thiết kế cùng nhau,
+- auth session gắn Store + User + Membership + Device,
+- raw session token không được lưu.
+
+### M1.3 - Permission context
+
+- load membership/role,
+- resolve capability set từ `role_permissions`,
+- enforce ở Worker/server-side,
+- UI chỉ phản ánh capability chứ không phải security boundary.
+
+### M1.4+ - POS business slice
+
+Sau khi trust/auth/permission context ổn định mới đi tiếp:
+
+1. TableType.
+2. BilliardTable.
+3. Pricing foundation cần cho open session.
+4. Open TableSession.
+5. Timer/server-time semantics.
+6. Category/Product.
+7. Add product to bill với price snapshot.
+8. Bill lifecycle.
+9. Cash / bank-transfer payment.
+10. Finalize session/bill và trả bàn về `available`.
 
 ## M2 - Business completeness
 
 Dự kiến hoàn thiện các nghiệp vụ V1 còn lại:
 
-- table types cấu hình,
-- pricing rules linh hoạt,
+- pricing rules linh hoạt đầy đủ,
 - time adjustments + audit,
 - chuyển bàn,
 - gộp bill,
 - catalog/danh mục đầy đủ,
 - bill lifecycle đầy đủ,
-- role/permission management,
+- role/permission management UI,
 - domain events/audit cần thiết.
 
 Không có tồn kho, discount/surcharge hoặc split bill trong V1 hiện tại.
 
 ## M3 - Printing
 
-V1 printing scope:
+V1 printing scope đã khóa tại [`PRINTING_V1.md`](PRINTING_V1.md):
 
 - 80mm,
-- Windows print agent/driver/spooler,
+- Windows print adapter/driver/spooler,
 - template mặc định,
 - Owner chỉnh nội dung qua allowlisted placeholder/block editor,
 - `{qr_thanh_toan}` và các placeholder dữ liệu,
@@ -173,7 +199,7 @@ Không có arbitrary HTML/CSS/JavaScript hoặc drag-drop designer tự do trong
 
 ## M4 - Mobile PWA + realtime
 
-Mobile đã được chốt là **full operational client theo permission**, không chỉ viewer.
+Mobile là **full operational client theo permission**, không chỉ viewer.
 
 Mục tiêu:
 
@@ -213,6 +239,7 @@ Báo cáo bắt buộc V1:
 
 Pilot còn cần:
 
+- remote D1/deployment review,
 - backup/restore checks,
 - observability tối thiểu,
 - Windows installer/update channel,
@@ -220,12 +247,12 @@ Pilot còn cần:
 
 ## Việc tiếp theo
 
-Thứ tự mới:
+**M0 đã đóng.** Thứ tự triển khai tiếp theo:
 
-1. Rewrite migration `0001` theo Store model, loại bỏ branch hoàn toàn.
-2. Reset và test D1 local lại.
-3. Tạo Store Durable Object spike.
-4. Tạo shared health/command contracts đầu tiên.
-5. Thêm CI.
-6. Đóng M0.
-7. Bắt đầu M1 vertical slice.
+1. M1.1 Device identity + Store execution context.
+2. M1.2 Employee + PIN/AuthGate.
+3. M1.3 Permission context.
+4. TableType + BilliardTable.
+5. Online POS business vertical slice đến payment/close bill.
+
+Không tạo UI nghiệp vụ lớn trước khi Device/Store/Auth/Permission context đủ tin cậy.

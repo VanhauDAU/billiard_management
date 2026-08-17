@@ -1,6 +1,6 @@
 # Billiard Management
 
-Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid.
+Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid, ưu tiên POS desktop Windows và mở rộng Mobile PWA sau khi online vertical slice ổn định.
 
 ## Scope đã chốt
 
@@ -10,10 +10,37 @@ Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid.
 - Mobile PWA: về sau thao tác đầy đủ như POS theo permission.
 - API/Gateway: Cloudflare Workers + Hono.
 - Control plane: Cloudflare D1.
-- Operational data plane mục tiêu: một SQLite-backed **Store Durable Object** cho mỗi Store.
+- Operational data plane: một SQLite-backed **Store Durable Object** cho mỗi Store.
 - Offline local SQLite + sync/outbox triển khai sau online vertical slice.
 
 Scope nghiệp vụ chi tiết: [`docs/SYSTEM_SCOPE_V1.md`](docs/SYSTEM_SCOPE_V1.md).
+
+## Trạng thái hiện tại
+
+**M0 - Foundation đã hoàn thành.** Dự án bắt đầu **M1 - Windows POS online**.
+
+Foundation hiện có:
+
+- pnpm monorepo.
+- Electron main/preload/renderer boundary.
+- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
+- Typed IPC.
+- Desktop gọi Worker qua main process.
+- Hono Worker local port `8787`.
+- D1 database + binding `DB`.
+- Store-based migration `0001_init_control_plane.sql`.
+- Store = tenant/data-isolation boundary; không còn branch model trong schema hiện hành.
+- `STORE_DO` + `StoreDurableObject` SQLite.
+- Store identity invariant và health endpoint cho DO.
+- Store DO schema migration/versioning runner.
+- Automated Store DO tests cho read/write, transaction commit/rollback, Store isolation, identity lock và schema migration guards.
+- Shared contracts thật cho API health và `CommandEnvelope`.
+- Typecheck riêng cho contracts, Worker production code và Worker tests.
+- GitHub Actions CI chạy install frozen-lockfile, typecheck, tests và Desktop build trên push/PR.
+
+M1 bắt đầu từ **Device identity + Store execution context**, sau đó mới triển khai Employee + PIN, permission context và nghiệp vụ bàn.
+
+Xem tiến độ: [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Nghiệp vụ V1 chính
 
@@ -33,32 +60,7 @@ Scope nghiệp vụ chi tiết: [`docs/SYSTEM_SCOPE_V1.md`](docs/SYSTEM_SCOPE_V1
 - Mobile full operation theo permission ở milestone sau.
 - Báo cáo doanh thu/bàn/sản phẩm/hóa đơn/payment-method theo scope đã chốt.
 
-## Trạng thái hiện tại
-
-Dự án đang ở **M0 - Foundation**, khoảng **65%** sau khi thay đổi kiến trúc từ Branch sang Store.
-
-Đã hoàn thành nền tảng:
-
-- pnpm monorepo.
-- Electron main/preload/renderer boundary.
-- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
-- Typed IPC.
-- Desktop gọi Worker local.
-- Hono Worker local port `8787`.
-- D1 database + binding `DB`.
-- Wrangler migration tooling.
-- `/api/health` và `/api/system/db-health`.
-- Worker type generation + TypeScript typecheck.
-
-Cần refactor ngay:
-
-- `0001_init_control_plane.sql` hiện vẫn còn branch model và **không được apply remote**.
-- Target mới bỏ `branches`, `branch_id`, `branch_registry`.
-- Sau đó mới làm `StoreDurableObject`.
-
-Xem tiến độ: [`docs/PROGRESS.md`](docs/PROGRESS.md).
-
-## Kiến trúc mục tiêu
+## Kiến trúc hiện tại
 
 ```text
 Windows Desktop POS                  Mobile PWA
@@ -89,18 +91,23 @@ Chi tiết: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ```text
 billiard_management/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── apps/
 │   ├── desktop/       # Electron POS
 │   ├── mobile/        # PWA scaffold
-│   └── worker/        # Hono + Cloudflare Worker + D1
+│   └── worker/        # Hono + Cloudflare Worker + D1 + Store DO
 ├── packages/
 │   ├── contracts/     # Shared commands/events/API schemas
-│   ├── domain/        # Pure business rules
+│   ├── domain/        # Pure business rules - triển khai dần từ M1
 │   └── shared/        # Pure utilities
 ├── docs/
-│   ├── SYSTEM_SCOPE_V1.md
+│   ├── ADR-001-single-store-no-branch.md
 │   ├── ARCHITECTURE.md
-│   └── PROGRESS.md
+│   ├── PRINTING_V1.md
+│   ├── PROGRESS.md
+│   └── SYSTEM_SCOPE_V1.md
 ├── package.json
 └── pnpm-workspace.yaml
 ```
@@ -138,27 +145,35 @@ Terminal 2 - Desktop:
 pnpm dev:desktop
 ```
 
-## Typecheck / build
+## Quality gates
 
-Desktop:
+Chạy toàn bộ gate giống CI từ root:
 
 ```bash
-pnpm typecheck:desktop
+pnpm run ci
+```
+
+Các gate riêng:
+
+```bash
+pnpm typecheck:contracts
+pnpm typecheck:worker
+pnpm typecheck:worker:test
+pnpm test:worker
 pnpm build:desktop
 ```
 
-Worker:
+Nếu thay đổi `apps/worker/wrangler.jsonc`, tạo lại Cloudflare bindings trước khi typecheck:
 
 ```bash
 pnpm --dir apps/worker run cf-typegen
-pnpm --dir apps/worker run typecheck
 ```
 
 ## D1 local development
 
-> Migration `0001` hiện phải được rewrite theo Store model trước khi apply lại.
+Migration `0001` hiện là Store-based control-plane schema.
 
-Sau khi rewrite:
+Reset và apply D1 local từ đầu:
 
 ```bash
 rm -rf apps/worker/.wrangler/state
@@ -166,7 +181,27 @@ pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane
 pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
 ```
 
-**Không chạy `--remote` cho migration branch-based hiện tại.**
+Remote migration/deploy không phải gate của M0; chỉ thực hiện khi chuẩn bị môi trường remote/pilot và migration đã được review cho lần deploy đó.
+
+## Store Durable Object tests
+
+```bash
+pnpm --dir apps/worker run typecheck
+pnpm --dir apps/worker run typecheck:test
+pnpm --dir apps/worker test
+```
+
+Store DO foundation hiện kiểm tra tự động:
+
+- initialize/persist Store identity,
+- SQLite read/write,
+- transaction commit,
+- transaction rollback,
+- isolation giữa hai Store,
+- identity lock,
+- fresh schema version,
+- migration idempotency,
+- reject schema mới hơn code đang chạy.
 
 ## Nguyên tắc kiến trúc
 
@@ -182,14 +217,22 @@ pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local 
 - Timer UI không phải nguồn sự thật của thời gian chơi.
 - Money không dùng floating-point.
 - Giá lịch sử không đổi theo cấu hình mới.
-- Command semantics tồn tại từ M1; offline persistence làm sau.
+- Mutation nghiệp vụ từ M1 đi qua command semantics.
+- Offline persistence đến sau online vertical slice.
 - Print template chỉ dùng allowlisted placeholder/block, không arbitrary script/code.
 
 ## Bước tiếp theo
 
-1. Rewrite `0001_init_control_plane.sql` theo Store model.
-2. Reset/test D1 local.
-3. Tạo `STORE_DO` + `StoreDurableObject` SQLite spike.
-4. Tạo shared contracts đầu tiên.
-5. Thêm CI.
-6. Đóng M0 và bắt đầu M1 vertical slice.
+Bắt đầu **M1 - Windows POS online vertical slice** theo thứ tự:
+
+1. Device identity + Store execution context.
+2. Employee + PIN authentication.
+3. Permission context.
+4. Table type + Billiard table.
+5. Open playing session + server-time semantics.
+6. Product catalog + add item.
+7. Bill.
+8. Cash / bank-transfer payment.
+9. Close session/bill và trả bàn về `available`.
+
+M1 dùng shared contracts/command semantics ngay từ đầu để giữ đường tiến hóa tới Mobile và offline/sync sau này.

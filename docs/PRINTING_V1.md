@@ -2,13 +2,28 @@
 
 Cập nhật: **2026-08-18**
 
+> Trạng thái triển khai: **scope đã khóa, chưa bắt đầu implementation**. M0 Foundation đã hoàn thành; printing dự kiến triển khai ở milestone sau khi online POS flow/bill/payment ổn định.
+
 ## 1. Scope
 
 V1 hỗ trợ in hóa đơn khổ **80mm** trên Windows POS.
 
-Các khổ khác có thể thêm sau, không thiết kế toàn bộ engine nhiều khổ ở M0/M1.
+Các khổ khác có thể thêm sau. V1 không mở rộng thành engine nhiều khổ hoặc designer tự do nếu chưa có requirement mới.
 
-## 2. Mục tiêu editor
+## 2. Điều kiện trước khi triển khai printing
+
+Printing phụ thuộc vào các nghiệp vụ đã ổn định:
+
+- finalized bill model,
+- payment result,
+- Store information,
+- employee/actor context,
+- Desktop main-process printing adapter,
+- shared receipt/template semantics.
+
+Không xây print renderer dựa trên UI state tạm thời của POS.
+
+## 3. Mục tiêu editor
 
 Owner có thể:
 
@@ -37,7 +52,7 @@ dán vào editor
 Preview render QR thật nếu Store đã cấu hình chuyển khoản
 ```
 
-## 3. Không dùng arbitrary HTML/JS
+## 4. Không dùng arbitrary HTML/JS
 
 V1 không cho người dùng chạy:
 
@@ -57,7 +72,7 @@ Lý do:
 - dễ validate template,
 - dễ migrate template version sau này.
 
-## 4. Placeholder V1 dự kiến
+## 5. Placeholder V1 dự kiến
 
 ### Store
 
@@ -93,7 +108,7 @@ Lý do:
 
 Placeholder không hợp lệ phải được editor cảnh báo trước khi lưu.
 
-## 5. Repeating content
+## 6. Repeating content
 
 Bill items không nên biểu diễn bằng một placeholder text đơn như `{danh_sach_mon}` nếu cần layout linh hoạt.
 
@@ -105,9 +120,9 @@ Nên dùng block có cấu trúc, ví dụ semantic concept:
 [/items]
 ```
 
-Syntax cuối cùng chưa khóa ở M0; điều bắt buộc là parser/renderer phải do hệ thống kiểm soát và validate được.
+Syntax cuối cùng chưa khóa; điều bắt buộc là parser/renderer phải do hệ thống kiểm soát và validate được.
 
-## 6. QR thanh toán
+## 7. QR thanh toán
 
 `{qr_thanh_toan}` render QR dựa trên cấu hình bank-transfer của Store.
 
@@ -119,7 +134,7 @@ Nếu dữ liệu chưa đủ:
 
 QR là presentation của `bank_transfer`, không phải payment method riêng.
 
-## 7. Preview
+## 8. Preview
 
 Preview và print phải dùng cùng template AST/renderer semantics.
 
@@ -134,7 +149,7 @@ Preview cần mô phỏng:
 - QR size,
 - item wrapping.
 
-## 8. Versioning
+## 9. Versioning
 
 Mỗi lần publish template mới tạo version mới thay vì overwrite mất lịch sử.
 
@@ -148,7 +163,9 @@ print_jobs
 
 Print job nên biết template version được dùng để hỗ trợ audit/retry/reprint policy.
 
-## 9. Printing boundary
+Các entity này thuộc operational Store data plane và sẽ được thêm bằng Store DO schema migration khi milestone printing bắt đầu; không đưa sớm vào foundation migration chỉ để dự phòng.
+
+## 10. Printing boundary
 
 ```text
 Renderer UI
@@ -164,7 +181,9 @@ Windows driver / spooler
 
 Renderer không gọi OS printing API trực tiếp.
 
-## 10. Retry / idempotency
+Business data để render receipt phải đến từ finalized domain state/contract, không từ DOM hoặc component state tùy ý.
+
+## 11. Retry / idempotency
 
 Print request phải có identity riêng để tránh double-print ngoài ý muốn khi network/UI retry.
 
@@ -176,7 +195,29 @@ Cần phân biệt:
 - failed/retry,
 - manual reprint.
 
-## 11. Ngoài scope V1
+Reprint phải có policy rõ về việc dùng template version lịch sử hay template hiện tại.
+
+## 12. Quan hệ với M1/M2
+
+Printing không chặn việc bắt đầu M1.
+
+Thứ tự mong muốn:
+
+```text
+Device/Auth/Permission
+      ↓
+Table/Session/Product/Bill
+      ↓
+Payment finalize
+      ↓
+Receipt data contract ổn định
+      ↓
+Printing 80mm
+```
+
+Việc này tránh khóa print template vào một bill schema còn đang thay đổi.
+
+## 13. Ngoài scope V1
 
 - drag-drop designer tự do,
 - custom HTML/CSS/JS,

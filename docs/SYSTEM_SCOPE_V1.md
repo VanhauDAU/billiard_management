@@ -4,6 +4,8 @@ Cập nhật: **2026-08-18**
 
 Tài liệu này là scope nghiệp vụ V1 đã được duyệt. Nếu code, migration hoặc tài liệu khác mâu thuẫn với tài liệu này thì **SYSTEM_SCOPE_V1.md là nguồn quyết định nghiệp vụ ưu tiên** cho đến khi có quyết định mới.
 
+> Trạng thái triển khai: **M0 - Foundation đã hoàn thành; M1 - Windows POS online bắt đầu từ Device identity + Store execution context.** Trạng thái milestone không thay đổi các quyết định scope bên dưới.
+
 ## 1. Mô hình cửa hàng
 
 ### Quyết định đã chốt
@@ -76,6 +78,7 @@ Nguyên tắc:
 - PIN không lưu plaintext.
 - PIN hashing, pepper, rate limiting và lockout được thiết kế cùng AuthGate.
 - Mọi mutation quan trọng phải biết actor/user thực hiện.
+- Device/Store context phải được backend resolve đáng tin cậy trước auth/mutation; client không được tự khai `storeId` rồi mặc nhiên được tin cậy.
 
 ## 4. Quản lý bàn và loại bàn
 
@@ -284,6 +287,8 @@ Các danh sách lặp như bill items cần dùng block/template construct riên
 
 `{qr_thanh_toan}` chỉ render khi cửa hàng đã cấu hình dữ liệu chuyển khoản cần thiết. Nếu chưa cấu hình thì template engine phải xử lý trạng thái thiếu dữ liệu rõ ràng, không in QR giả.
 
+Chi tiết printing: [`PRINTING_V1.md`](PRINTING_V1.md).
+
 ## 14. Báo cáo V1
 
 Bắt buộc có:
@@ -354,10 +359,10 @@ Chưa làm trong V1 trừ khi có quyết định mới:
 
 ## 18. Vertical slice đầu tiên
 
-Sau khi M0 foundation đóng, vertical slice M1 ưu tiên:
+**M0 Foundation đã đóng.** M1 ưu tiên triển khai theo trust boundary trước rồi mới đến nghiệp vụ POS:
 
 ```text
-Thiết bị thuộc Store
+Device identity + Store context
   ↓
 Nhân viên + PIN
   ↓
@@ -375,5 +380,7 @@ Thanh toán cash/bank transfer
   ↓
 Đóng bill + bàn trở về available
 ```
+
+Bước code hiện tại là **Device identity + Store execution context**. Store context cho mutation phải được resolve từ server-side device/session data trước khi route request tới Store Durable Object.
 
 Chuyển bàn, gộp bill, editor mẫu in và báo cáo đầy đủ được triển khai theo milestone sau trong V1, không cần nhồi toàn bộ vào vertical slice đầu tiên.
