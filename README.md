@@ -1,46 +1,67 @@
 # Billiard Management
 
-Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid:
+Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid.
 
-- **Desktop POS:** Electron + React + TypeScript, ưu tiên Windows khi triển khai cửa hàng.
-- **Mobile:** React/Vite PWA, triển khai ở milestone sau.
-- **API/Gateway:** Cloudflare Workers + Hono.
-- **Control plane:** Cloudflare D1.
-- **Operational data plane:** một SQLite-backed Durable Object cho mỗi chi nhánh (đang ở bước tiếp theo).
-- **Local/offline POS:** SQLite replica + sync/outbox sẽ triển khai ở milestone offline, chưa làm ở M0.
+## Scope đã chốt
+
+- **Một Store = một cửa hàng vật lý.**
+- V1 **không có branch/chi nhánh**.
+- Desktop POS: Electron + React + TypeScript, ưu tiên Windows khi triển khai.
+- Mobile PWA: về sau thao tác đầy đủ như POS theo permission.
+- API/Gateway: Cloudflare Workers + Hono.
+- Control plane: Cloudflare D1.
+- Operational data plane mục tiêu: một SQLite-backed **Store Durable Object** cho mỗi Store.
+- Offline local SQLite + sync/outbox triển khai sau online vertical slice.
+
+Scope nghiệp vụ chi tiết: [`docs/SYSTEM_SCOPE_V1.md`](docs/SYSTEM_SCOPE_V1.md).
+
+## Nghiệp vụ V1 chính
+
+- Nhân viên + PIN login.
+- Role/permission cấu hình linh hoạt bởi Owner.
+- Loại bàn cấu hình: bàn líp, bàn lỗ, ...
+- Pricing cấu hình linh hoạt.
+- Mở bàn, tính giờ, điều chỉnh thời gian có audit.
+- Danh mục/sản phẩm; V1 chưa có tồn kho.
+- Thêm sản phẩm vào bàn và snapshot giá bán.
+- Bill không có discount/surcharge ở V1 hiện tại.
+- Thanh toán tiền mặt/chuyển khoản.
+- Chuyển bàn.
+- Gộp bill.
+- Không tách bill trong V1.
+- In hóa đơn 80mm với template/placeholder editor + preview.
+- Mobile full operation theo permission ở milestone sau.
+- Báo cáo doanh thu/bàn/sản phẩm/hóa đơn/payment-method theo scope đã chốt.
 
 ## Trạng thái hiện tại
 
-Dự án đang ở **M0 - Foundation**.
+Dự án đang ở **M0 - Foundation**, khoảng **65%** sau khi thay đổi kiến trúc từ Branch sang Store.
 
-Đã hoàn thành:
+Đã hoàn thành nền tảng:
 
 - pnpm monorepo.
 - Electron main/preload/renderer boundary.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
-- Typed IPC cho desktop.
-- Desktop gọi được Worker local.
-- Hono Worker chạy local ổn định ở port `8787`.
-- D1 `billiards-control-plane` và binding `DB`.
-- Migration `0001_init_control_plane.sql`.
-- Control-plane schema: tenant, branch, user, membership, device, auth session, branch registry.
+- Typed IPC.
+- Desktop gọi Worker local.
+- Hono Worker local port `8787`.
+- D1 database + binding `DB`.
+- Wrangler migration tooling.
 - `/api/health` và `/api/system/db-health`.
-- Worker type generation và TypeScript typecheck.
+- Worker type generation + TypeScript typecheck.
 
-Chưa hoàn thành M0:
+Cần refactor ngay:
 
-- Shared API contracts thực tế trong `packages/contracts`.
-- Domain primitives thực tế trong `packages/domain`.
-- Branch Durable Object + SQLite health/transaction spike.
-- CI tự động typecheck/build.
-- Harden một số cross-table invariants của auth session trước khi apply migration đầu tiên lên D1 remote.
+- `0001_init_control_plane.sql` hiện vẫn còn branch model và **không được apply remote**.
+- Target mới bỏ `branches`, `branch_id`, `branch_registry`.
+- Sau đó mới làm `StoreDurableObject`.
 
-Xem tiến độ chi tiết tại [`docs/PROGRESS.md`](docs/PROGRESS.md).
+Xem tiến độ: [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
-## Kiến trúc
+## Kiến trúc mục tiêu
 
 ```text
-Windows Desktop POS                  Mobile PWA (sau)
+Windows Desktop POS                  Mobile PWA
 Electron + React                    React + Vite
         │                                │
         └──────────────┬─────────────────┘
@@ -50,18 +71,19 @@ Electron + React                    React + Vite
                        │
           ┌────────────┴────────────┐
           ▼                         ▼
-      D1 control plane       Branch Durable Object
- tenant/user/branch/device     1 object / branch
-          │                    SQLite operational DB
+      D1 control plane        Store Durable Object
+ store/user/role/device         1 object / Store
+ auth/session/registry          SQLite operational DB
           │                         │
-          │                  tables/bills/sessions/
-          │                  products/payments/events
+          │                tables/pricing/sessions/
+          │                products/bills/payments/
+          │                commands/events/templates
           └────────────┬────────────┘
                        ▼
                  Sync / realtime
 ```
 
-Chi tiết quyết định kiến trúc: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Chi tiết: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Cấu trúc repository
 
@@ -69,24 +91,21 @@ Chi tiết quyết định kiến trúc: [`docs/ARCHITECTURE.md`](docs/ARCHITECT
 billiard_management/
 ├── apps/
 │   ├── desktop/       # Electron POS
-│   ├── mobile/        # PWA scaffold, chưa phát triển ở M0
+│   ├── mobile/        # PWA scaffold
 │   └── worker/        # Hono + Cloudflare Worker + D1
 ├── packages/
 │   ├── contracts/     # Shared commands/events/API schemas
 │   ├── domain/        # Pure business rules
 │   └── shared/        # Pure utilities
 ├── docs/
+│   ├── SYSTEM_SCOPE_V1.md
+│   ├── ARCHITECTURE.md
+│   └── PROGRESS.md
 ├── package.json
 └── pnpm-workspace.yaml
 ```
 
 ## Chạy local
-
-Yêu cầu chính:
-
-- Node.js phù hợp với toolchain hiện tại.
-- pnpm 11.x.
-- Cloudflare Wrangler đã được cài qua workspace.
 
 Cài dependencies:
 
@@ -100,7 +119,7 @@ Terminal 1 - Worker:
 pnpm dev:worker
 ```
 
-Worker local được cố định tại:
+Worker local:
 
 ```text
 http://localhost:8787
@@ -137,39 +156,40 @@ pnpm --dir apps/worker run typecheck
 
 ## D1 local development
 
-Apply migrations vào D1 local:
+> Migration `0001` hiện phải được rewrite theo Store model trước khi apply lại.
+
+Sau khi rewrite:
 
 ```bash
+rm -rf apps/worker/.wrangler/state
 pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane --local
-```
-
-Kiểm tra foreign keys:
-
-```bash
 pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
 ```
 
-Không apply `--remote` chỉ để thử nghiệm. Migration remote chỉ chạy khi schema đã được review và chốt.
+**Không chạy `--remote` cho migration branch-based hiện tại.**
 
 ## Nguyên tắc kiến trúc
 
-- D1 là **control plane**, không chứa bảng/bill/product/payment vận hành.
-- Operational state của mỗi chi nhánh sẽ thuộc **Branch Durable Object**.
-- Renderer không được truy cập Node/Electron trực tiếp; chỉ dùng API hẹp do preload expose.
+- Store = tenant/data isolation boundary.
+- V1 không có branch.
+- D1 là control plane.
+- Store DO là operational single-writer boundary.
+- Renderer không truy cập Node/Electron trực tiếp.
+- Permission enforce server-side.
 - Không lưu raw session token.
-- PIN credential/rate limiting được thiết kế cùng AuthGate, không thêm tùy tiện vào `users`.
-- Command semantics được thiết kế từ đầu; persistent offline outbox triển khai ở milestone offline.
-- Mobile không được kéo tiến độ M0/M1; chỉ phát triển khi desktop online vertical slice ổn định.
+- PIN/rate-limit/lockout thiết kế cùng AuthGate.
+- Loại bàn và pricing là dữ liệu cấu hình, không hard-code.
+- Timer UI không phải nguồn sự thật của thời gian chơi.
+- Money không dùng floating-point.
+- Giá lịch sử không đổi theo cấu hình mới.
+- Command semantics tồn tại từ M1; offline persistence làm sau.
+- Print template chỉ dùng allowlisted placeholder/block, không arbitrary script/code.
 
 ## Bước tiếp theo
 
-Bước kỹ thuật tiếp theo là **Branch Durable Object spike**:
-
-1. `BRANCH_DO` binding.
-2. `BranchDurableObject` class.
-3. `idFromName(branchId)` để bảo đảm một DO cho mỗi branch.
-4. SQLite `system_metadata` trong DO.
-5. Health endpoint Worker → DO → SQLite.
-6. Transaction smoke test.
-
-Sau khi spike này pass mới xây `CommandEnvelope`, `ProcessedCommand`, `DomainEvent`, rồi mới bắt đầu vertical slice POS đầu tiên.
+1. Rewrite `0001_init_control_plane.sql` theo Store model.
+2. Reset/test D1 local.
+3. Tạo `STORE_DO` + `StoreDurableObject` SQLite spike.
+4. Tạo shared contracts đầu tiên.
+5. Thêm CI.
+6. Đóng M0 và bắt đầu M1 vertical slice.
