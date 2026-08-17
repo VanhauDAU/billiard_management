@@ -1,18 +1,36 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "billiards-api",
-	"main": "src/index.ts",
-	"compatibility_date": "2026-08-17",
-	"dev": {
-		"port": 8787
-	},
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "billiards-control-plane",
-			"database_id": "a76939dc-5cd1-4473-ad38-a9262703ae87"
-		}
-	]
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "billiards-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-17",
+
+  "dev": {
+    "port": 8787
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "billiards-control-plane",
+      "database_id": "a76939dc-5cd1-4473-ad38-a9262703ae87"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STORE_DO",
+        "class_name": "StoreDurableObject"
+      }
+    ]
+  },
+
+  "exports": {
+    "StoreDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  }
 	// "compatibility_flags": [
 	//   "nodejs_compat"
 	// ],
