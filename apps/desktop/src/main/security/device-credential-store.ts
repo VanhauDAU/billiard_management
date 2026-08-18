@@ -84,6 +84,40 @@ async function requireEncryption(): Promise<void> {
   }
 }
 
+async function decryptCredential(
+  encrypted: Buffer
+): Promise<{
+  result: string
+  shouldReEncrypt: boolean
+}> {
+  try {
+    const initial =
+      await safeStorage
+        .decryptStringAsync(
+          encrypted
+        )
+
+    if (!initial.shouldReEncrypt) {
+      return initial
+    }
+
+    const refreshed =
+      await safeStorage
+        .decryptStringAsync(
+          encrypted
+        )
+
+    return {
+      result: refreshed.result,
+      shouldReEncrypt: true
+    }
+  } catch {
+    throw new Error(
+      'invalid_device_credential_file'
+    )
+  }
+}
+
 export async function assertDeviceCredentialStorageAvailable(): Promise<void> {
   await requireEncryption()
 }
@@ -172,19 +206,10 @@ export async function loadDeviceCredential(): Promise<
 
   await requireEncryption()
 
-  const initialDecryption =
-    await safeStorage
-      .decryptStringAsync(
-        encrypted
-      )
-
   const decrypted =
-    initialDecryption.shouldReEncrypt
-      ? await safeStorage
-          .decryptStringAsync(
-            encrypted
-          )
-      : initialDecryption
+    await decryptCredential(
+      encrypted
+    )
 
   let parsed: unknown
 
@@ -208,7 +233,7 @@ export async function loadDeviceCredential(): Promise<
   }
 
   if (
-    initialDecryption.shouldReEncrypt
+    decrypted.shouldReEncrypt
   ) {
     await saveDeviceCredential({
       deviceId:
