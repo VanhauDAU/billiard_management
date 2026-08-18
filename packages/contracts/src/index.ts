@@ -11,3 +11,4 @@ export * from './auth/permission'
 
 export * from './table/table'
 export * from './table/table-command'
+export * from './table/table-api'
