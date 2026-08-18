@@ -37,9 +37,9 @@ Hiện hệ thống đã có:
 - Worker resolve trusted Store context từ Device; client không tự quyết `storeId`.
 - Electron tạo installation identity ổn định và lưu device credential bằng async `safeStorage` trong Main Process.
 - Renderer không nhận `deviceSecret`.
-- DeviceGate/ActivationScreen cho các trạng thái activation, reactivation, blocked, unavailable và ready.
+- DeviceGate/ActivationScreen cho activation, reactivation, blocked, unavailable, local-error và ready.
 - Shared Zod contracts cho health, `CommandEnvelope`, device activation và device context.
-- 18 Worker tests: 9 Store DO + 9 Device context.
+- 22 Worker tests: 9 Store DO + 9 Device context + 4 Device authorization parser.
 - GitHub Actions CI chạy frozen install, typecheck, Worker tests và Desktop build trên push/PR.
 
 Bước nghiệp vụ tiếp theo là **M1.2 - Employee + PIN/AuthGate**, sau đó mới tới permission context và nghiệp vụ bàn.
@@ -164,7 +164,7 @@ Terminal 2 - Desktop:
 pnpm dev:desktop
 ```
 
-Desktop dev dùng `MAIN_VITE_API_BASE_URL=http://localhost:8787` từ `apps/desktop/.env.example`. Packaged build phải dùng backend HTTPS; HTTP chỉ dành cho loopback trong development.
+Desktop dev dùng `MAIN_VITE_API_BASE_URL=http://localhost:8787` từ `apps/desktop/.env.example`. Packaged build phải dùng backend HTTPS; HTTP chỉ dành cho loopback trong development. Script Desktop tự chạy `install-electron --no` trước `dev/start` để fresh clone không thiếu Electron binary.
 
 ## Quality gates
 
@@ -220,7 +220,8 @@ Coverage hành vi hiện tại gồm:
 - wrong/revoked credential,
 - inactive Store,
 - credential rotation,
-- spoofed client Store ID không thay đổi trusted Store context.
+- spoofed client Store ID không thay đổi trusted Store context,
+- Device authorization parser: scheme, UUID, secret format và separator validation.
 
 ## Nguyên tắc kiến trúc
 
