@@ -14,27 +14,33 @@ Quyết định kiến trúc:
 
 ## 1. Trạng thái hiện tại
 
-**M0 - Foundation**, **M1.1 - Device identity + Store execution context** và **M1.2 - Employee PIN authentication + AuthGate** đã hoàn thành theo local/functional gate.
+Đã hoàn thành theo local/functional gate:
+
+- **M0 - Foundation**,
+- **M1.1 - Device identity + Store execution context**,
+- **M1.2 - Employee PIN authentication + AuthGate**,
+- **M1.3 - Permission Context**.
 
 Hiện có:
 
-- Electron Desktop main/preload/renderer trust boundary.
-- Hono Worker gateway/API.
-- D1 Store-based control plane.
-- `STORE_DO` + SQLite-backed `StoreDurableObject`, một DO / Store.
-- Store identity guard + Store DO migration/version runner.
-- one-time Device activation + hashed Device credential.
-- một `installationId` chỉ thuộc tối đa một Store tại một thời điểm.
-- trusted Store context resolve server-side từ authenticated Device.
-- employee PIN credential dùng PBKDF2-SHA256 + server-side lockout.
-- AuthSession bind Store + User + Membership + Device + PIN credential version.
-- trusted `AuthContext` resolve server-side; raw session credential không vào Renderer.
-- Desktop AuthGate sau DeviceGate.
-- protected `/api/system/*` diagnostics bằng secret riêng.
-- client command envelope không được tự khai Store/Device/Actor identity authority.
+- Electron Desktop main/preload/renderer trust boundary,
+- Hono Worker gateway/API,
+- D1 Store-based control plane,
+- `STORE_DO` + SQLite-backed `StoreDurableObject`, một DO / Store,
+- Store identity guard + Store DO migration/version runner,
+- one-time Device activation + hashed Device credential,
+- trusted Store context resolve server-side từ authenticated Device,
+- employee PIN credential PBKDF2-SHA256 + server-side lockout,
+- AuthSession bind Store + User + Membership + Device + PIN credential version,
+- trusted `AuthContext`,
+- trusted `PermissionContext` + `requirePermission`,
+- safe `/api/auth/permissions` capability snapshot cho Desktop UX,
+- DeviceGate → AuthGate → PermissionGate trên Desktop,
+- protected `/api/system/*` diagnostics,
+- strict command trust boundary không nhận Store/Device/Actor authority từ client,
 - root CI cho contracts/Worker/tests/Desktop build.
 
-Bước tiếp theo: **M1.3 - Permission Context**.
+Bước tiếp theo: **M1.4 - TableType + BilliardTable**.
 
 ## 2. Sơ đồ tổng thể
 
@@ -64,9 +70,7 @@ Bước tiếp theo: **M1.3 - Permission Context**.
                                   payment/command/event/print
 ```
 
-Cloudflare SQLite-backed Durable Object storage là operational boundary phù hợp vì storage của mỗi object là private, transactional và strongly consistent. D1 giữ control-plane data; D1 `batch()` thực thi statements tuần tự và rollback cả sequence khi statement fail. Điều này phù hợp với các control-plane transition như Device activation/credential rotation nhưng không thay thế Store DO cho high-churn operational state.
-
-V1 không chứa `branches`, `branch_id`, `BRANCH_DO`, `BranchDurableObject` hoặc UI chọn/chuyển branch.
+D1 giữ control-plane data. Store Durable Object là operational single-writer/consistency boundary cho từng Store. V1 không chứa `branches`, `branch_id`, `BRANCH_DO`, `BranchDurableObject` hoặc UI chọn/chuyển branch.
 
 ## 3. Store là tenant boundary
 
@@ -78,6 +82,8 @@ Guardrail:
 - client-supplied `storeId` không phải security authority,
 - mọi Store-scoped entity từ payload phải được kiểm tra thuộc trusted Store trước mutation,
 - Device context phải được xác thực trước Employee/Auth/Permission context,
+- operational request chỉ route tới `STORE_DO.idFromName(trustedStoreId)`,
+- Store DO phải verify persisted Store identity trước khi đọc/ghi,
 - nếu sau này hỗ trợ chuỗi nhiều địa điểm, đó là capability mới chứ không phải branch ẩn trong V1.
 
 ## 4. Desktop process boundary
@@ -101,18 +107,15 @@ Main Process
 
 Security rules:
 
-- `contextIsolation: true`, `nodeIntegration: false`, renderer sandbox bật.
-- Renderer không nhận `deviceSecret` hoặc raw `sessionToken`.
-- Preload expose method hẹp theo IPC channel, không expose raw `ipcRenderer`.
-- Privileged IPC chỉ chấp nhận top-level trusted renderer frame.
-- Development renderer trust theo Vite origin.
-- Packaged renderer trust đúng packaged `renderer/index.html`, không phải mọi `file:` URL.
-- Chromium permissions deny-by-default.
-- DevTools chỉ bật ở development.
-- External navigation deny-by-default; chỉ HTTPS origin được allowlist rõ ràng mới được mở.
-- Packaged Desktop chỉ kết nối backend qua HTTPS; HTTP development chỉ cho loopback.
-
-Các rule này phù hợp với Electron security guidance hiện hành: context isolation, process sandboxing, restrictive navigation/window creation, sender validation và narrow contextBridge APIs.
+- `contextIsolation: true`, `nodeIntegration: false`, renderer sandbox bật,
+- Renderer không nhận `deviceSecret` hoặc raw `sessionToken`,
+- Renderer/Preload không tự xây `Authorization` hoặc `X-Auth-Session`,
+- Preload expose method hẹp theo IPC channel, không expose raw `ipcRenderer`,
+- privileged IPC chỉ chấp nhận trusted top-level renderer frame,
+- Chromium permissions deny-by-default,
+- DevTools chỉ bật ở development,
+- external navigation deny-by-default,
+- packaged Desktop chỉ kết nối backend qua HTTPS; HTTP development chỉ cho loopback.
 
 ### Local credential files
 
@@ -125,14 +128,13 @@ app.getPath('userData')/
     └── session.bin
 ```
 
-- `installation.json`: UUID ổn định, không phải secret.
-- `device/credential.bin`: encrypted `deviceId + deviceSecret` bằng async `safeStorage`.
-- `auth/session.bin`: encrypted `deviceId + sessionToken` bằng async `safeStorage`.
-- async `safeStorage` được dùng để hỗ trợ non-blocking operation, key rotation và temporary unavailability handling.
-- Device credential hỏng → controlled reactivation.
-- Auth session credential hỏng → xóa local credential và yêu cầu PIN login lại.
-- secure storage unavailable → fail-closed.
-- Device reactivation → xóa local AuthSession credential.
+- `installation.json`: UUID ổn định, không phải secret,
+- `device/credential.bin`: encrypted `deviceId + deviceSecret` bằng async `safeStorage`,
+- `auth/session.bin`: encrypted `deviceId + sessionToken` bằng async `safeStorage`,
+- Device credential hỏng → controlled reactivation,
+- Auth session credential hỏng → discard + PIN login lại,
+- secure storage unavailable → fail-closed,
+- Device reactivation → local AuthSession credential không được tiếp tục tin cậy.
 
 ## 5. D1 Control Plane
 
@@ -162,30 +164,26 @@ auth_sessions
 store_registry
 ```
 
-### Device invariant
+D1 **không** là nơi lưu `table_types`, `billiard_tables`, sessions, products, bills hoặc payments.
 
-`0003` tạo global unique index trên `devices.installation_id`.
+### Device invariant
 
 V1 behavior:
 
 - same Store + same installation → reactivation hợp lệ, giữ Device row và rotate credential,
 - different Store + same installation → conflict,
-- original Store/device không bị chuyển hoặc revoke ngầm,
+- original Store/device không bị chuyển/revoke ngầm,
 - chuyển Store sau này phải là privileged transfer/recovery flow.
 
 ### Activation token + AuthSession revocation
 
-`device_activation_tokens` chỉ lưu token hash, Store, status, expiry và used-device metadata. Raw token không persist.
-
 Khi Device reactivation hợp lệ:
 
 1. upsert/rotate Device credential,
-2. revoke active AuthSessions đang bind Device đó với reason `device_reactivated`,
+2. revoke active AuthSessions bind Device đó với reason `device_reactivated`,
 3. consume activation token.
 
-Ba statement chạy trong một D1 batch transaction. Replay/expired token không được phép revoke session hiện hành. Regression test phải khóa invariant này.
-
-Issuance/admin UI cho activation token chưa triển khai.
+Control-plane transition dùng D1 transaction/batch semantics; replay/expired token không được revoke session hiện hành.
 
 ## 6. Device + Store trust boundary
 
@@ -194,9 +192,9 @@ Desktop Main
       │ Authorization: Device <id>.<secret>
       ▼
 requireDevice
-      ├── validate auth scheme / UUID / secret format
-      ├── SHA-256 secret + constant-time compare
-      ├── lookup D1 Device + Store
+      ├── validate scheme / UUID / secret format
+      ├── hash + constant-time comparison
+      ├── lookup Device + Store
       ├── reject invalid/revoked/inactive states
       └── build trusted DeviceContext
               │
@@ -204,58 +202,22 @@ requireDevice
          trusted Store
 ```
 
-`GET /api/pos/context` hiện là Device context/smoke endpoint, chưa phải business POS authorization surface.
-
 Client `x-store-id` hoặc body `storeId` không thay đổi trusted Store context.
 
 ## 7. Employee PIN + AuthSession boundary
 
-### PIN credential
+### PIN
 
-PIN V1:
-
-- chuỗi 4-6 chữ số,
-- không trim làm mất semantics của leading zero,
-- salt random 16 bytes,
+- chuỗi 4-6 chữ số, giữ leading zero,
+- random salt 16 bytes,
 - PBKDF2-HMAC-SHA256,
-- production iteration config hiện tại: 600,000,
-- D1 lưu hash + salt + algorithm + iterations + credential version,
-- không lưu raw PIN.
-
-### Lockout
-
-`employee_pin_auth_state` scope:
-
-```text
-Store + User + Device
-```
-
-Failure window: 15 phút.
-
-Escalation hiện tại:
-
-```text
-attempt 1-4   no lock
-attempt 5     30 seconds
-attempt 6     1 minute
-attempt 7     5 minutes
-attempt 8     15 minutes
-attempt 9+    30 minutes
-```
-
-Lockout là server-side security state; countdown trong AuthGate chỉ là UX.
+- production iterations hiện tại: 600,000,
+- D1 chỉ lưu hash/salt/algorithm/iterations/version,
+- lockout scope `Store + User + Device`, server-side.
 
 ### AuthSession
 
-Login thành công tạo:
-
-```text
-sessionId       public UUID
-sessionSecret   random 256-bit secret
-sessionToken    <sessionId>.<sessionSecret>
-```
-
-D1 chỉ persist SHA-256 của high-entropy session secret.
+Login thành công tạo high-entropy session secret; D1 chỉ lưu SHA-256 hash của secret.
 
 Session bind:
 
@@ -267,36 +229,23 @@ Store
 + PIN credential version
 ```
 
-Khi authenticate session, Worker re-check:
-
-- Store active,
-- Device active,
-- User active,
-- Membership active,
-- Role active,
-- PIN credential active,
-- PIN credential version vẫn khớp,
-- session chưa revoke và chưa expire,
-- session secret hash match.
-
-`requireAuthSession` sau đó tạo `AuthContext` từ DB; client không tự khai actor authority.
+Khi authenticate session, Worker re-check Store/Device/User/Membership/Role/PIN status, credential version, expiry/revocation và session secret hash. `requireAuthSession` tạo trusted `AuthContext`; client không tự khai actor authority.
 
 ### Auth API
 
 ```text
-GET  /api/auth/employees   Device required
-POST /api/auth/pin         Device required
-GET  /api/auth/session     Device + AuthSession required
-POST /api/auth/logout      Device + AuthSession required
+GET  /api/auth/employees     Device required
+POST /api/auth/pin           Device required
+GET  /api/auth/session       Device + AuthSession required
+GET  /api/auth/permissions   Device + AuthSession required
+POST /api/auth/logout        Device + AuthSession required
 ```
 
-Toàn bộ `/api/auth/*` response có `Cache-Control: no-store`; `/pin` là endpoint duy nhất trả raw session token và Desktop Main phải consume/lưu credential đó.
+Toàn bộ `/api/auth/*` response có `Cache-Control: no-store`. `/pin` là endpoint duy nhất trả raw session token và Desktop Main phải consume/lưu secret đó.
 
-## 8. Permission boundary - M1.3 target
+## 8. Permission boundary - M1.3 implemented
 
-M1.3 không được chỉ “load role vào UI”. Permission phải resolve/enforce ở Worker.
-
-Target flow:
+Authorization chain hiện tại:
 
 ```text
 requireDevice
@@ -305,38 +254,69 @@ requireAuthSession
       ↓
 Trusted AuthContext
       ↓
-resolve role_permissions for trusted Store + Role
-      ↓
-PermissionContext
+resolvePermissionContext
+      │ D1 current Membership + Role + role_permissions
+      ▼
+Trusted PermissionContext
       ↓
 requirePermission('table.open')
       ↓
 business handler
 ```
 
-Recommended internal shape:
+### Permission source
 
-```ts
+`permission_catalog` là system-controlled allowlist. `role_permissions` grant catalog capability cho role của đúng Store.
+
+Shared contracts định nghĩa cùng allowlist qua `PERMISSION_KEYS`/`PermissionKeySchema`, và regression test khóa contract list khớp D1 catalog.
+
+### Resolver rules
+
+- resolver nhận **trusted `AuthContext`**, không nhận trusted identity từ body/header,
+- query current Membership/Role/permissions của đúng Store,
+- Membership hoặc Role inactive → authorization không tiếp tục,
+- absence of permission = deny,
+- unknown permission key trong DB = schema/code drift → fail-closed,
+- role reassignment sau login có hiệu lực khi request kế tiếp authenticate/resolve current context,
+- permission removal có hiệu lực ở request kế tiếp.
+
+### Enforcement semantics
+
+```text
+401
+→ Device/AuthSession/current actor context không còn hợp lệ
+
+403 permission_denied
+→ actor đã authenticated nhưng thiếu capability
+
+503 authorization_unavailable
+→ Worker không resolve được authorization state; fail-closed
+```
+
+Mọi business route phải gọi `requirePermission(...)` phù hợp. UI hide/disable không thay thế server authorization.
+
+### Client capability snapshot
+
+`GET /api/auth/permissions` trả:
+
+```json
 {
-  storeId,
-  deviceId,
-  actorId,
-  membershipId,
-  roleId,
-  permissions: Set<PermissionKey>
+  "permissions": ["table.view", "table.open"]
 }
 ```
 
-Rules:
+Electron Main gắn raw Device/AuthSession credentials. IPC/Preload chỉ chuyển safe response sang Renderer.
 
-- permission key phải nằm trong `permission_catalog`,
-- absence = deny,
-- không nhận permission list từ client,
-- authorize phải dùng role/membership hiện hành; role change phải có hiệu lực cho request sau,
-- UI có thể hide/disable action nhưng Worker vẫn enforce,
-- business command handler phải lấy Store/Device/Actor từ trusted context.
+Renderer `PermissionGate` tạo `ReadonlySet<PermissionKey>` + `hasPermission(...)` để dùng cho UX.
 
-Permission catalog hiện đã có các capability như `table.view`, `table.open`, `table.transfer`, `table.manage`, `product.*`, `pricing.manage`, `bill.*`, `employee.manage`, `role.manage`, `report.view`, `print.template.manage`, `store.settings.manage`.
+**Invariant:**
+
+```text
+Renderer hasPermission(...) = UX hint/snapshot
+Worker requirePermission(...) = security authority
+```
+
+Capability snapshot hiện refresh khi gate mount/retry. Nếu permission đổi khi UI đang mở thì UI có thể tạm stale; protected Worker request vẫn dùng current authorization state. Refresh-on-focus/403/realtime là P1 UX improvement, không phải security boundary.
 
 ## 9. System diagnostics boundary
 
@@ -345,13 +325,7 @@ Permission catalog hiện đã có các capability như `table.view`, `table.ope
 /api/system/stores/:storeId/do-health
 ```
 
-Đây không phải POS business API.
-
-- Nếu `SYSTEM_DIAGNOSTICS_TOKEN` chưa cấu hình đủ mạnh → route trả 404 fail-closed.
-- Khi bật → yêu cầu `Authorization: Bearer <system-token>`.
-- Secret local đặt trong ignored `.dev.vars`; remote phải dùng deployment secret/config.
-
-Diagnostic path `storeId` không phải precedent cho business mutation routing.
+Đây không phải POS business API. Nếu diagnostics secret chưa cấu hình đủ mạnh thì route fail-closed; diagnostic path `storeId` không phải precedent cho business mutation routing.
 
 ## 10. Store Durable Object
 
@@ -362,24 +336,37 @@ STORE_DO.idFromName(storeId)
       ↓
 StoreDurableObject
       ↓
+verify persisted Store identity
+      ↓
 SQLite operational DB
 ```
 
 Foundation hiện có:
 
+- `system_metadata`,
 - persisted `store_id`,
 - Store identity mismatch guard,
-- `system_metadata`,
 - schema migration runner,
-- migration sequence validation,
+- sequential migration validation,
 - future/newer schema guard,
 - migration transaction,
-- current Store schema version 1 foundation,
+- current schema version **1 - foundation**,
 - transaction/read-write/isolation tests.
 
-Migration v1 chưa tạo bảng nghiệp vụ là chủ ý. Từng nhóm table/session/product/bill/payment chỉ thêm khi vertical slice cần.
+Version 1 chủ ý chưa tạo bảng nghiệp vụ.
 
-**Mọi future Store DO route phải establish/verify Store identity trước khi đọc/ghi operational state.**
+### M1.4 schema direction
+
+M1.4 tạo Store DO migration version 2 tối thiểu cho:
+
+```text
+table_types
+billiard_tables
+```
+
+Không tạo pricing/session/product/bill/payment schema trước khi milestone cần.
+
+Table master lifecycle ở M1.4 chỉ dùng `active/disabled`. **Không persist `occupied` như master flag**; từ M1.5 `available/occupied` phải derive từ active `TableSession` để không có hai nguồn sự thật.
 
 ## 11. Command trust boundary
 
@@ -394,32 +381,21 @@ Client command intent:
 }
 ```
 
-Client schema strict và không nhận `storeId/deviceId/actorId` làm authority.
+Client schema strict và không nhận `storeId/deviceId/actorId/permission` làm authority.
 
-Sau authentication/authorization, server enrich thành trusted internal command:
+Sau authentication/authorization, server enrich trusted execution context từ Worker contexts.
 
-```ts
-{
-  commandId,
-  issuedAt,
-  commandType,
-  payload,
-  storeId,
-  deviceId,
-  actorId
-}
-```
+- `storeId`: trusted Store,
+- `deviceId`: authenticated Device,
+- `actorId`: authenticated Employee,
+- permission: Worker-resolved capability,
+- `issuedAt`: client intent timestamp, không phải authoritative online clock.
 
-- `storeId`: trusted Store context.
-- `deviceId`: authenticated Device.
-- `actorId`: authenticated Employee.
-- `issuedAt`: client intent timestamp, **không** phải authoritative online clock.
-
-Open-session time, pricing, payment và audit execution timestamp phải dùng server time. Offline milestone sau cần clock/sync/boot-anchor policy riêng.
+Open-session time, pricing, payment và audit execution timestamp phải dùng server time. Offline milestone sau có clock/sync/boot-anchor policy riêng.
 
 ## 12. Operational domain target
 
-Store DO SQLite sẽ tiến hóa theo migration:
+Store DO SQLite sẽ tiến hóa theo milestone:
 
 ```text
 table_types
@@ -446,9 +422,10 @@ Không tạo tất cả trước khi vertical slice cần.
 
 Invariant:
 
-- loại bàn/pricing là dữ liệu cấu hình, không hard-code,
-- money dùng integer unit phù hợp VND, không floating-point,
+- loại bàn/pricing là configurable data, không hard-code,
+- money dùng integer VND, không floating-point,
 - timer UI không phải nguồn sự thật,
+- table occupancy derive từ active session,
 - giá lịch sử dùng snapshot/version,
 - time adjustment cần permission + reason + actor + audit,
 - V1 có chuyển bàn/gộp bill, không split bill,
@@ -458,15 +435,13 @@ Invariant:
 
 Printing chạy ở Desktop Main Process.
 
-V1: 80mm, template mặc định, allowlisted placeholder/block editor, preview dùng cùng template semantics, template versioning và retry/idempotency cho print job.
-
-Không cho arbitrary HTML/CSS/JavaScript.
+V1: 80mm, template mặc định, allowlisted placeholder/block editor, preview dùng cùng template semantics, template versioning và retry/idempotency cho print job. Không cho arbitrary HTML/CSS/JavaScript.
 
 Chi tiết: [`PRINTING_V1.md`](PRINTING_V1.md).
 
 ## 14. Mobile + offline
 
-Mobile PWA hiện là deferred scaffold. Khi triển khai, Mobile dùng cùng Worker APIs, contracts, commands và server business rules; không fork pricing/session/bill logic riêng.
+Mobile PWA hiện là deferred scaffold. Khi triển khai, Mobile dùng cùng Worker APIs, contracts, permissions, commands và server business rules.
 
 Offline đến sau online vertical slice:
 
@@ -496,46 +471,53 @@ Worker Vitest
 Desktop typecheck + build
 ```
 
-Worker suite cover:
+Worker suite hiện cover:
 
 - Store DO identity/schema/transactions/isolation,
-- Device activation/context/parser/cross-Store invariant,
+- Device activation/context/cross-Store invariant,
 - system diagnostics auth,
 - command trust boundary,
 - PIN validation/PBKDF2,
-- AuthSession token hashing,
-- auth contract/service/routes,
-- PIN lockout/session invalidation/logout,
-- Device reactivation session revocation + activation-token replay safety,
-- auth response cache policy.
+- AuthSession credential/routes/lockout/invalidation/logout,
+- Device reactivation session revocation + token replay safety,
+- auth response cache policy,
+- permission catalog alignment,
+- full Device → AuthSession → Permission integration,
+- granted/missing capability,
+- permission revocation/current role changes,
+- disabled/suspended actor state,
+- cross-Store/client-spoof authorization cases,
+- `/api/auth/permissions` behavior.
 
 Desktop security path hiện dựa trên typecheck/build + manual functional smoke. Automated Electron integration/security tests vẫn thiếu.
 
-## 16. Debt/risk trước remote pilot
+## 16. Debt/risk
 
-### P0 - trước business mutation đầu tiên
+### P0 trước business mutation
 
-1. **M1.3 Permission Context** + server-side `requirePermission`.
-2. Mọi business route phải lấy Store/Device/Actor từ trusted contexts.
-3. Định nghĩa command idempotency boundary trước mutation thực tế.
+1. ✅ M1.3 Permission Context hoàn thành.
+2. Mọi business route mới phải lấy Store/Device/Actor từ trusted contexts và gọi `requirePermission`.
+3. Command idempotency bắt buộc trước high-risk mutation như OpenTableSession; M1.4 configuration mutation vẫn phải có transaction/constraint/error semantics rõ ràng.
 
-### P0 - trước remote/pilot
+### P0 trước remote/pilot
 
 1. Activation-token issuance/admin UI + permission boundary.
 2. Privileged Device transfer/reset/installation-repair flow.
 3. Remote D1 migration/secrets/backup/restore/observability review.
 4. Code signing/notarization/update channel + packaged Windows smoke.
-5. Branch protection cho `main`: merge qua PR + required CI check.
+5. Branch protection cho `main`: PR-only + required CI check.
 
 ### P1
 
 1. `devices.last_seen_at` heartbeat/touch policy.
-2. Align TypeScript version giữa contracts/Worker/Desktop/Mobile.
-3. Automated Desktop tests cho trusted URL, IPC sender, safeStorage/recovery, DeviceGate/AuthGate.
-4. Chuẩn hóa lint/format gate toàn monorepo trước khi bật trong CI.
+2. Align TypeScript versions giữa contracts/Worker/Desktop/Mobile.
+3. Automated Desktop tests cho trusted URL, IPC sender, safeStorage/recovery, DeviceGate/AuthGate/PermissionGate.
+4. Chuẩn hóa formatter/linter và đưa vào CI sau khi baseline sạch.
 5. AuthSession retention/pruning + concurrent-session policy.
-6. Xem xét Device-wide anti-abuse budget ngoài per-employee PIN lockout trước public/hostile-device threat model.
-7. Tách `AuthGate.tsx` thành state/controller + presentational components trước khi UI POS tăng độ phức tạp.
+6. Device-wide anti-abuse budget nếu threat model mở rộng.
+7. Tách `AuthGate.tsx` thành controller/hooks + presentational components.
+8. Normalize `PermissionGate.tsx` formatting.
+9. Permission UX refresh strategy khi role-management/realtime được thêm.
 
 ## 17. Quy tắc không phá vỡ
 
@@ -544,18 +526,20 @@ Desktop security path hiện dựa trên typecheck/build + manual functional smo
 3. D1 = control plane; Store DO = operational single-writer boundary.
 4. Renderer không giữ Device/session secret.
 5. Device/Store/Auth/Permission context resolve/enforce server-side.
-6. Client-supplied Store/Device/Actor/Permission không phải security authority.
-7. Packaged Desktop không gửi credential qua plaintext HTTP.
-8. PIN không plaintext/fast-hash; lockout nằm server-side.
-9. Auth response không cache.
-10. Client `issuedAt` không phải authoritative online time.
-11. Money không dùng floating-point.
-12. Timer UI không phải nguồn sự thật.
-13. Giá lịch sử không đổi theo config mới.
-14. Offline đến sau online vertical slice.
-15. Mobile dùng chung contracts/commands/server rules.
-16. Production/pilot schema chỉ đổi qua reviewed migration.
-17. CI phải bảo vệ contracts + Worker + tests + Desktop build.
+6. Client-supplied Store/Device/Actor/Role/Permission không phải security authority.
+7. Renderer capability snapshot chỉ là UX; Worker authorization mới là authority.
+8. Packaged Desktop không gửi credential qua plaintext HTTP.
+9. PIN không plaintext/fast-hash; lockout nằm server-side.
+10. Auth response không cache.
+11. Client `issuedAt` không phải authoritative online time.
+12. Money không dùng floating-point.
+13. Timer UI không phải nguồn sự thật.
+14. Table occupancy không được có duplicate master/session source of truth.
+15. Giá lịch sử không đổi theo config mới.
+16. Offline đến sau online vertical slice.
+17. Mobile dùng chung contracts/permissions/commands/server rules.
+18. Production/pilot schema chỉ đổi qua reviewed migration.
+19. CI phải bảo vệ contracts + Worker + tests + Desktop build.
 
 ## 18. Thứ tự triển khai tiếp theo
 
@@ -566,17 +550,13 @@ M1.1 Device + Store trust ✅
       ↓
 M1.2 Employee PIN + AuthGate ✅
       ↓
-M1.3 Permission Context ⏭
+M1.3 Permission Context ✅
       ↓
-TableType + BilliardTable
+M1.4 TableType + BilliardTable ⏭
       ↓
-Pricing foundation + Open session
+M1.5 Pricing + Open TableSession
       ↓
-Timer/server-time semantics
-      ↓
-Products + Bill
-      ↓
-Payment + finalize
+M1.6 Products + Bill + Payment + finalize
 ```
 
-Không bắt đầu UI nghiệp vụ lớn trước khi `requirePermission` và trusted command context được nối vào business route thật.
+M1.4 phải nối authorization đã có vào business route thật đầu tiên. Không bắt đầu OpenTableSession/timer trước khi table foundation, Store isolation và `table.view`/`table.manage` gate đều xanh.
