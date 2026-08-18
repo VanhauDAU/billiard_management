@@ -81,7 +81,9 @@ async function requireEncryption(): Promise<void> {
     )
   }
 }
-
+export async function assertDeviceCredentialStorageAvailable(): Promise<void> {
+  await requireEncryption()
+}
 export async function saveDeviceCredential(
   credential: Omit<
     StoredDeviceCredential,

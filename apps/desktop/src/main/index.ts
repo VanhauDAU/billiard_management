@@ -8,6 +8,9 @@ import {
   isAllowedExternalUrl,
   isTrustedRendererUrl
 } from './security/trusted-url'
+import {
+  registerDeviceIpc
+} from './ipc/device-ipc'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -66,7 +69,7 @@ app.whenReady().then(() => {
 
   registerAppIpc()
   registerBackendIpc()
-
+  registerDeviceIpc()
   createWindow()
 
   app.on('activate', () => {
