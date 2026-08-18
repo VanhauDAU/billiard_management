@@ -1,72 +1,101 @@
 import { ipcMain } from 'electron'
-
-import { PinLoginRequestSchema } from '@billiards/contracts'
-
-import { IPC_CHANNELS } from '../../shared/ipc-channels'
-
 import {
+  CreateStaffRequestSchema,
+  PasswordLoginRequestSchema,
+  PinLoginRequestSchema,
+  UpdateStaffRequestSchema,
+  VerifyPinRequestSchema
+} from '@billiards/contracts'
+import { IPC_CHANNELS } from '../../shared/ipc-channels'
+import {
+  createDesktopStaff,
+  deleteDesktopStaff,
   getDesktopAuthEmployees,
-  getDesktopAuthPermissions,
+  getDesktopPermissions,
   getDesktopAuthState,
-  loginDesktopEmployee,
-  logoutDesktopEmployee
+  listDesktopStaff,
+  loginDesktopEmployeeWithPin,
+  loginDesktopWithPassword,
+  logoutDesktopAuthSession,
+  updateDesktopStaff,
+  verifyDesktopPin
 } from '../auth/auth-service'
-
 import { assertTrustedIpcSender } from '../security/ipc-sender'
 
 export function registerAuthIpc(): void {
-  ipcMain.handle(
-    IPC_CHANNELS.authGetState,
+  ipcMain.handle(IPC_CHANNELS.authGetState, async (event) => {
+    assertTrustedIpcSender(event)
+    return getDesktopAuthState()
+  })
 
-    async (event) => {
-      assertTrustedIpcSender(event)
+  ipcMain.handle(IPC_CHANNELS.authGetEmployees, async (event) => {
+    assertTrustedIpcSender(event)
+    return getDesktopAuthEmployees()
+  })
 
-      return getDesktopAuthState()
+  ipcMain.handle(IPC_CHANNELS.authGetPermissions, async (event) => {
+    assertTrustedIpcSender(event)
+    return getDesktopPermissions()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.authLogin, async (event, rawInput: unknown) => {
+    assertTrustedIpcSender(event)
+    const parsed = PinLoginRequestSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      throw new Error('invalid_pin_login_input')
     }
-  )
+    return loginDesktopEmployeeWithPin(parsed.data)
+  })
 
-  ipcMain.handle(
-    IPC_CHANNELS.authGetEmployees,
-
-    async (event) => {
-      assertTrustedIpcSender(event)
-
-      return getDesktopAuthEmployees()
+  ipcMain.handle(IPC_CHANNELS.authLoginWithPassword, async (event, rawInput: unknown) => {
+    assertTrustedIpcSender(event)
+    const parsed = PasswordLoginRequestSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      throw new Error('invalid_password_login_input')
     }
-  )
-  ipcMain.handle(
-    IPC_CHANNELS.authGetPermissions,
+    return loginDesktopWithPassword(parsed.data)
+  })
 
-    async (event) => {
-      assertTrustedIpcSender(event)
-
-      return getDesktopAuthPermissions()
+  ipcMain.handle(IPC_CHANNELS.authVerifyPin, async (event, rawInput: unknown) => {
+    assertTrustedIpcSender(event)
+    const parsed = VerifyPinRequestSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      throw new Error('invalid_verify_pin_input')
     }
-  )
+    return verifyDesktopPin(parsed.data)
+  })
 
-  ipcMain.handle(
-    IPC_CHANNELS.authLogin,
+  ipcMain.handle(IPC_CHANNELS.authLogout, async (event) => {
+    assertTrustedIpcSender(event)
+    return logoutDesktopAuthSession()
+  })
 
-    async (event, rawInput: unknown) => {
-      assertTrustedIpcSender(event)
+  // Staff Management IPC handlers
+  ipcMain.handle(IPC_CHANNELS.staffList, async (event) => {
+    assertTrustedIpcSender(event)
+    return listDesktopStaff()
+  })
 
-      const parsed = PinLoginRequestSchema.safeParse(rawInput)
-
-      if (!parsed.success) {
-        throw new Error('invalid_pin_login_input')
-      }
-
-      return loginDesktopEmployee(parsed.data)
+  ipcMain.handle(IPC_CHANNELS.staffCreate, async (event, rawInput: unknown) => {
+    assertTrustedIpcSender(event)
+    const parsed = CreateStaffRequestSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      throw new Error('invalid_create_staff_input')
     }
-  )
+    return createDesktopStaff(parsed.data)
+  })
 
-  ipcMain.handle(
-    IPC_CHANNELS.authLogout,
-
-    async (event) => {
-      assertTrustedIpcSender(event)
-
-      return logoutDesktopEmployee()
+  ipcMain.handle(IPC_CHANNELS.staffUpdate, async (event, rawInput: { id: string; data: unknown }) => {
+    assertTrustedIpcSender(event)
+    const parsed = UpdateStaffRequestSchema.safeParse(rawInput.data)
+    if (!parsed.success) {
+      throw new Error('invalid_update_staff_input')
     }
-  )
+    return updateDesktopStaff(rawInput.id, parsed.data)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.staffDelete, async (event, rawInput: { id: string }) => {
+    assertTrustedIpcSender(event)
+    return deleteDesktopStaff(rawInput.id)
+  })
 }

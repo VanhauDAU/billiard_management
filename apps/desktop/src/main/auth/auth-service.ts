@@ -1,24 +1,42 @@
-import type { AuthSessionResponse, PinLoginRequest } from '@billiards/contracts'
+import type {
+  CreateStaffRequest,
+  LoginResponse,
+  PinLoginRequest,
+  UpdateStaffRequest
+} from '@billiards/contracts'
 
 import type {
   DesktopAuthState,
+  DesktopCreateStaffResult,
+  DesktopDeleteStaffResult,
   DesktopEmployeeListResult,
+  DesktopLoginInput,
+  DesktopLoginResult,
   DesktopLogoutResult,
+  DesktopPermissionResult,
   DesktopPinLoginResult,
-  DesktopPermissionResult
+  DesktopStaffListResult,
+  DesktopUpdateStaffResult,
+  DesktopVerifyPinInput,
+  DesktopVerifyPinResult
 } from '../../shared/auth-api'
 
 import {
   BackendApiError,
+  createStaffHttp,
+  deleteStaffHttp,
   getAuthEmployees,
   getAuthPermissions,
   getAuthSession,
+  listStaffHttp,
   loginEmployeeWithPin,
-  logoutAuthSession
+  loginWithPasswordHttp,
+  logoutAuthSession,
+  updateStaffHttp,
+  verifyPinHttp
 } from '../api/backend-client'
 
 import { loadDeviceCredential } from '../security/device-credential-store'
-
 import {
   assertAuthSessionCredentialStorageAvailable,
   deleteAuthSessionCredential,
@@ -30,534 +48,214 @@ function hasErrorMessage(error: unknown, message: string): boolean {
   return error instanceof Error && error.message === message
 }
 
-function isDeviceNotReadyError(error: BackendApiError): boolean {
-  return (
-    error.code === 'device_auth_required' ||
-    error.code === 'invalid_device_credential' ||
-    error.code === 'device_revoked' ||
-    error.code === 'device_inactive' ||
-    error.code === 'store_inactive'
-  )
-}
-
-function toSafeSession(login: {
-  sessionId: string
-
-  expiresAt: string
-
-  actor: AuthSessionResponse['actor']
-}): AuthSessionResponse {
-  return {
-    sessionId: login.sessionId,
-
-    expiresAt: login.expiresAt,
-
-    actor: login.actor
-  }
-}
-
-// =========================================================
-// AUTH STATE
-// =========================================================
+// In-memory cache of current user / store profile
+let currentLoginData: LoginResponse | null = null
 
 export async function getDesktopAuthState(): Promise<DesktopAuthState> {
-  let deviceCredential
-
-  try {
-    deviceCredential = await loadDeviceCredential()
-  } catch (error) {
-    if (hasErrorMessage(error, 'secure_storage_unavailable')) {
-      return {
-        status: 'local_error',
-
-        reason: 'secure_storage_unavailable'
-      }
-    }
-
-    return {
-      status: 'device_not_ready'
-    }
-  }
-
-  if (!deviceCredential) {
-    return {
-      status: 'device_not_ready'
-    }
-  }
-
   let sessionCredential
-
   try {
     sessionCredential = await loadAuthSessionCredential()
   } catch (error) {
     if (hasErrorMessage(error, 'secure_storage_unavailable')) {
       return {
         status: 'local_error',
-
         reason: 'secure_storage_unavailable'
       }
     }
-
-    if (hasErrorMessage(error, 'invalid_auth_session_credential_file')) {
-      /*
-       * A corrupted local session credential
-       * cannot be trusted or recovered.
-       *
-       * Delete it and require employee PIN
-       * authentication again.
-       */
-      await deleteAuthSessionCredential()
-
-      return {
-        status: 'signed_out'
-      }
-    }
-
-    throw error
+    await deleteAuthSessionCredential()
+    return { status: 'signed_out' }
   }
 
   if (!sessionCredential) {
-    return {
-      status: 'signed_out'
-    }
+    return { status: 'signed_out' }
   }
 
-  if (sessionCredential.deviceId !== deviceCredential.deviceId) {
-    await deleteAuthSessionCredential()
-
-    return {
-      status: 'signed_out'
-    }
-  }
+  const deviceCredential = await loadDeviceCredential().catch(() => null)
 
   try {
     const session = await getAuthSession(deviceCredential, sessionCredential.sessionToken)
-
     return {
       status: 'authenticated',
-
-      session
+      session,
+      user: currentLoginData?.user,
+      store: currentLoginData?.store
     }
   } catch (error) {
-    if (error instanceof BackendApiError) {
-      if (error.status === 401 && error.code === 'invalid_auth_session') {
-        await deleteAuthSessionCredential()
-
-        return {
-          status: 'signed_out'
-        }
-      }
-
-      if (isDeviceNotReadyError(error)) {
-        return {
-          status: 'device_not_ready'
-        }
-      }
+    if (error instanceof BackendApiError && (error.code === 'invalid_auth_session' || error.status === 401)) {
+      await deleteAuthSessionCredential()
+      return { status: 'signed_out' }
     }
-
     return {
       status: 'unavailable',
-
       reason: 'backend_unavailable'
     }
   }
 }
 
 // =========================================================
-// PERMISSION CONTEXT
+// PASSWORD LOGIN (Owner, Manager, Staff)
 // =========================================================
 
-export async function getDesktopAuthPermissions():
-Promise<DesktopPermissionResult> {
-  let deviceCredential
-
-  /*
-   * Step 1:
-   * Load the trusted Device credential.
-   */
-  try {
-    deviceCredential =
-      await loadDeviceCredential()
-  } catch (error) {
-    if (
-      hasErrorMessage(
-        error,
-        'secure_storage_unavailable'
-      )
-    ) {
-      return {
-        ok: false,
-
-        error:
-          'secure_storage_unavailable'
-      }
-    }
-
-    return {
-      ok: false,
-
-      error:
-        'device_not_ready'
-    }
-  }
-
-
-  /*
-   * A permission request can exist only
-   * after Device activation.
-   */
-  if (!deviceCredential) {
-    return {
-      ok: false,
-
-      error:
-        'device_not_ready'
-    }
-  }
-
-
-  let sessionCredential
-
-  /*
-   * Step 2:
-   * Load AuthSession credential from
-   * Electron secure storage.
-   */
-  try {
-    sessionCredential =
-      await loadAuthSessionCredential()
-  } catch (error) {
-    if (
-      hasErrorMessage(
-        error,
-        'secure_storage_unavailable'
-      )
-    ) {
-      return {
-        ok: false,
-
-        error:
-          'secure_storage_unavailable'
-      }
-    }
-
-
-    /*
-     * Corrupted AuthSession local state
-     * must not be trusted.
-     */
-    if (
-      hasErrorMessage(
-        error,
-        'invalid_auth_session_credential_file'
-      )
-    ) {
-      await deleteAuthSessionCredential()
-
-      return {
-        ok: false,
-
-        error:
-          'signed_out'
-      }
-    }
-
-
-    return {
-      ok: false,
-
-      error:
-        'backend_unavailable'
-    }
-  }
-
-
-  /*
-   * No local AuthSession means employee
-   * authentication is not active.
-   */
-  if (!sessionCredential) {
-    return {
-      ok: false,
-
-      error:
-        'signed_out'
-    }
-  }
-
-
-  /*
-   * An AuthSession credential belongs to
-   * exactly the Device that created it.
-   *
-   * If Device credential was rotated or
-   * changed, discard the old local session.
-   */
-  if (
-    sessionCredential.deviceId !==
-      deviceCredential.deviceId
-  ) {
-    await deleteAuthSessionCredential()
-
-    return {
-      ok: false,
-
-      error:
-        'signed_out'
-    }
-  }
-
-
-  /*
-   * Step 3:
-   * Main Process calls Worker with both:
-   *
-   * Authorization: Device ...
-   * X-Auth-Session: ...
-   *
-   * Renderer never sees either raw secret.
-   */
-  try {
-    const value =
-      await getAuthPermissions(
-        deviceCredential,
-
-        sessionCredential
-          .sessionToken
-      )
-
-    return {
-      ok: true,
-
-      value
-    }
-  } catch (error) {
-    /*
-     * Worker rejected the AuthSession.
-     *
-     * Local session must be deleted so the
-     * next UI state goes back to PIN login.
-     */
-    if (
-      error instanceof
-        BackendApiError
-    ) {
-      if (
-        error.status === 401 &&
-        (
-          error.code ===
-            'invalid_auth_session' ||
-
-          error.code ===
-            'auth_session_required'
-        )
-      ) {
-        await deleteAuthSessionCredential()
-
-        return {
-          ok: false,
-
-          error:
-            'signed_out'
-        }
-      }
-
-
-      /*
-       * Device itself is no longer trusted.
-       */
-      if (
-        isDeviceNotReadyError(
-          error
-        )
-      ) {
-        return {
-          ok: false,
-
-          error:
-            'device_not_ready'
-        }
-      }
-    }
-
-
-    /*
-     * Includes:
-     *
-     * - network timeout
-     * - authorization_unavailable
-     * - HTTP 5xx
-     * - malformed response
-     * - unknown backend failure
-     */
-    return {
-      ok: false,
-
-      error:
-        'backend_unavailable'
-    }
-  }
-}
-
-// =========================================================
-// EMPLOYEE LIST
-// =========================================================
-
-export async function getDesktopAuthEmployees(): Promise<DesktopEmployeeListResult> {
-  let deviceCredential
-
-  try {
-    deviceCredential = await loadDeviceCredential()
-  } catch {
-    return {
-      ok: false,
-      error: 'device_not_ready'
-    }
-  }
-
-  if (!deviceCredential) {
-    return {
-      ok: false,
-      error: 'device_not_ready'
-    }
-  }
-
-  try {
-    const value = await getAuthEmployees(deviceCredential)
-
-    return {
-      ok: true,
-      value
-    }
-  } catch (error) {
-    if (error instanceof BackendApiError && isDeviceNotReadyError(error)) {
-      return {
-        ok: false,
-        error: 'device_not_ready'
-      }
-    }
-
-    return {
-      ok: false,
-      error: 'backend_unavailable'
-    }
-  }
-}
-
-// =========================================================
-// PIN LOGIN
-// =========================================================
-
-export async function loginDesktopEmployee(input: PinLoginRequest): Promise<DesktopPinLoginResult> {
-  let deviceCredential
-
-  try {
-    deviceCredential = await loadDeviceCredential()
-  } catch {
-    return {
-      ok: false,
-      error: 'device_not_ready'
-    }
-  }
-
-  if (!deviceCredential) {
-    return {
-      ok: false,
-      error: 'device_not_ready'
-    }
-  }
-
-  /*
-   * Check secure storage BEFORE creating the
-   * server AuthSession. Otherwise we could
-   * receive a one-time secret that cannot
-   * be persisted safely.
-   */
+export async function loginDesktopWithPassword(
+  input: DesktopLoginInput
+): Promise<DesktopLoginResult> {
   try {
     await assertAuthSessionCredentialStorageAvailable()
   } catch {
     return {
       ok: false,
-      error: 'secure_storage_unavailable'
+      error: 'secure_storage_unavailable',
+      message: 'Không thể truy cập bộ nhớ bảo mật của hệ điều hành'
     }
   }
 
   try {
-    const login = await loginEmployeeWithPin(deviceCredential, input)
+    const loginResponse = await loginWithPasswordHttp(input)
 
     try {
       await saveAuthSessionCredential({
-        deviceId: deviceCredential.deviceId,
-
-        sessionToken: login.sessionToken
+        sessionToken: loginResponse.sessionToken
       })
-    } catch (error) {
-      /*
-       * The server session has already been
-       * created. Best-effort revoke it if
-       * local persistence unexpectedly fails.
-       */
-      try {
-        await logoutAuthSession(deviceCredential, login.sessionToken)
-      } catch {
-        // Best effort only.
-      }
-
-      console.error('Failed to persist AuthSession credential:', error)
-
+    } catch {
       return {
         ok: false,
-        error: 'session_storage_failed'
+        error: 'session_storage_failed',
+        message: 'Lưu phiên làm việc thất bại'
       }
     }
+
+    currentLoginData = loginResponse
 
     return {
       ok: true,
-
-      session: toSafeSession(login)
+      data: loginResponse
     }
   } catch (error) {
     if (error instanceof BackendApiError) {
-      if (isDeviceNotReadyError(error)) {
+      if (error.code === 'invalid_credentials') {
         return {
           ok: false,
-          error: 'device_not_ready'
+          error: 'invalid_credentials',
+          message: 'Tên đăng nhập hoặc mật khẩu không chính xác'
         }
       }
-
-      switch (error.code) {
-        case 'invalid_employee_or_pin':
-          return {
-            ok: false,
-            error: 'invalid_employee_or_pin'
-          }
-
-        case 'pin_not_configured':
-          return {
-            ok: false,
-            error: 'pin_not_configured'
-          }
-
-        case 'pin_locked':
-          return {
-            ok: false,
-            error: 'pin_locked',
-
-            retryAfterSeconds: error.retryAfterSeconds
-          }
-
-        case 'authentication_unavailable':
-          return {
-            ok: false,
-            error: 'authentication_unavailable'
-          }
+      if (error.code === 'user_disabled') {
+        return {
+          ok: false,
+          error: 'user_disabled',
+          message: 'Tài khoản này đã bị khóa'
+        }
+      }
+      if (error.code === 'role_mismatch') {
+        return {
+          ok: false,
+          error: 'role_mismatch',
+          message: 'Tài khoản không thuộc quyền quản lý cửa hàng'
+        }
       }
     }
 
     return {
       ok: false,
-      error: 'backend_unavailable'
+      error: 'backend_unavailable',
+      message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại mạng.'
     }
+  }
+}
+
+// =========================================================
+// VERIFY 4-DIGIT PIN
+// =========================================================
+
+export async function verifyDesktopPin(
+  input: DesktopVerifyPinInput
+): Promise<DesktopVerifyPinResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'verification_unavailable', message: 'Chưa đăng nhập' }
+  }
+
+  try {
+    const res = await verifyPinHttp(sessionCredential.sessionToken, input)
+    return { ok: true, data: res }
+  } catch (error) {
+    if (error instanceof BackendApiError && error.code === 'invalid_pin') {
+      return { ok: false, error: 'invalid_pin', message: 'Mã PIN 4 số không chính xác' }
+    }
+    return { ok: false, error: 'verification_unavailable', message: 'Xác thực mã PIN thất bại' }
+  }
+}
+
+// =========================================================
+// STAFF MANAGEMENT IPC BRIDGES
+// =========================================================
+
+export async function listDesktopStaff(): Promise<DesktopStaffListResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out' }
+  }
+
+  try {
+    const res = await listStaffHttp(sessionCredential.sessionToken)
+    return { ok: true, data: res }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'failed' }
+  }
+}
+
+export async function createDesktopStaff(
+  data: CreateStaffRequest
+): Promise<DesktopCreateStaffResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out', message: 'Chưa đăng nhập' }
+  }
+
+  try {
+    const res = await createStaffHttp(sessionCredential.sessionToken, data)
+    return { ok: true, data: res }
+  } catch (error) {
+    const message =
+      error instanceof BackendApiError && error.code === 'username_already_exists'
+        ? 'Tên đăng nhập đã tồn tại trong cửa hàng'
+        : 'Không thể tạo tài khoản nhân viên'
+    return { ok: false, error: 'creation_failed', message }
+  }
+}
+
+export async function updateDesktopStaff(
+  id: string,
+  data: UpdateStaffRequest
+): Promise<DesktopUpdateStaffResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out' }
+  }
+
+  try {
+    const res = await updateStaffHttp(sessionCredential.sessionToken, id, data)
+    return { ok: true, data: res }
+  } catch (error) {
+    return { ok: false, error: 'update_failed' }
+  }
+}
+
+export async function deleteDesktopStaff(id: string): Promise<DesktopDeleteStaffResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out' }
+  }
+
+  try {
+    await deleteStaffHttp(sessionCredential.sessionToken, id)
+    return { ok: true }
+  } catch (error) {
+    const message =
+      error instanceof BackendApiError && error.code === 'cannot_delete_owner'
+        ? 'Không thể xóa tài khoản Chủ quán'
+        : 'Xóa nhân viên thất bại'
+    return { ok: false, error: 'delete_failed', message }
   }
 }
 
@@ -565,40 +263,91 @@ export async function loginDesktopEmployee(input: PinLoginRequest): Promise<Desk
 // LOGOUT
 // =========================================================
 
-export async function logoutDesktopEmployee(): Promise<DesktopLogoutResult> {
+export async function logoutDesktopAuthSession(): Promise<DesktopLogoutResult> {
+  const deviceCredential = await loadDeviceCredential().catch(() => null)
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+
   let remoteRevoked = false
-
-  const sessionCredential = await loadAuthSessionCredential()
-
-  if (!sessionCredential) {
-    return {
-      ok: true,
-      remoteRevoked: false
-    }
-  }
-
-  const deviceCredential = await loadDeviceCredential()
-
-  if (deviceCredential && deviceCredential.deviceId === sessionCredential.deviceId) {
+  if (sessionCredential) {
     try {
       await logoutAuthSession(deviceCredential, sessionCredential.sessionToken)
-
       remoteRevoked = true
-    } catch {
-      /*
-       * Local logout must still succeed.
-       * The server session will expire by
-       * its absolute TTL if remote revoke
-       * was impossible.
-       */
-      remoteRevoked = false
-    }
+    } catch {}
   }
 
-  await deleteAuthSessionCredential()
+  await deleteAuthSessionCredential().catch(() => null)
+  currentLoginData = null
 
-  return {
-    ok: true,
-    remoteRevoked
+  return { ok: true, remoteRevoked }
+}
+
+// =========================================================
+// LEGACY PIN / PERMISSION METHODS
+// =========================================================
+
+export async function getDesktopAuthEmployees(): Promise<DesktopEmployeeListResult> {
+  const deviceCredential = await loadDeviceCredential().catch(() => null)
+  if (!deviceCredential) {
+    return { ok: false, error: 'device_not_ready' }
+  }
+
+  try {
+    const list = await getAuthEmployees(deviceCredential)
+    return { ok: true, value: list }
+  } catch {
+    return { ok: false, error: 'backend_unavailable' }
+  }
+}
+
+export async function loginDesktopEmployeeWithPin(
+  input: PinLoginRequest
+): Promise<DesktopPinLoginResult> {
+  const deviceCredential = await loadDeviceCredential().catch(() => null)
+  if (!deviceCredential) {
+    return { ok: false, error: 'device_not_ready' }
+  }
+
+  try {
+    const res = await loginEmployeeWithPin(deviceCredential, input)
+    await saveAuthSessionCredential({
+      sessionToken: res.sessionToken
+    })
+    return {
+      ok: true,
+      session: {
+        sessionId: res.sessionId,
+        expiresAt: res.expiresAt,
+        actor: res.actor
+      }
+    }
+  } catch (error) {
+    if (error instanceof BackendApiError) {
+      if (error.code === 'invalid_employee_or_pin') {
+        return { ok: false, error: 'invalid_employee_or_pin' }
+      }
+      if (error.code === 'pin_not_configured') {
+        return { ok: false, error: 'pin_not_configured' }
+      }
+      if (error.code === 'pin_locked') {
+        return { ok: false, error: 'pin_locked', retryAfterSeconds: error.retryAfterSeconds }
+      }
+    }
+    return { ok: false, error: 'backend_unavailable' }
+  }
+}
+
+export async function getDesktopPermissions(): Promise<DesktopPermissionResult> {
+  const deviceCredential = await loadDeviceCredential().catch(() => null)
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out' }
+  }
+
+  try {
+    const res = await getAuthPermissions(deviceCredential, sessionCredential.sessionToken)
+    return { ok: true, value: res }
+  } catch {
+    return { ok: false, error: 'backend_unavailable' }
   }
 }

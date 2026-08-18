@@ -4,13 +4,24 @@ import {
   ActivateDeviceResponseSchema,
   ApiHealthResponseSchema,
   AuthSessionResponseSchema,
+  CreateStaffRequest,
   DeviceContextSchema,
   EmployeeListResponseSchema,
+  LoginResponse,
+  LoginResponseSchema,
   LogoutResponseSchema,
-  PinLoginResponseSchema,
+  PasswordLoginRequest,
   PermissionContextResponseSchema,
+  PinLoginResponseSchema,
+  StaffItem,
+  StaffListResponse,
+  StaffListResponseSchema,
   TableCommandApiResponseSchema,
-  TableConfigurationResponseSchema
+  TableConfigurationResponseSchema,
+  UpdateStaffRequest,
+  VerifyPinRequest,
+  VerifyPinResponse,
+  VerifyPinResponseSchema
 } from '@billiards/contracts'
 
 import type {
@@ -18,10 +29,10 @@ import type {
   ActivateDeviceResponse,
   ApiHealthResponse,
   AuthSessionResponse,
-  PermissionContextResponse,
   DeviceContext,
   EmployeeListResponse,
   LogoutResponse,
+  PermissionContextResponse,
   PinLoginRequest,
   PinLoginResponse,
   TableCommandApiResponse,
@@ -30,7 +41,6 @@ import type {
 } from '@billiards/contracts'
 
 const DEFAULT_TIMEOUT_MS = 5000
-
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
 export interface DeviceCredential {
@@ -41,26 +51,18 @@ export interface DeviceCredential {
 export class BackendApiError extends Error {
   constructor(
     public readonly status: number,
-
     public readonly code: string,
-
     public readonly retryAfterSeconds?: number
   ) {
     super(code)
-
     this.name = 'BackendApiError'
   }
 }
 
 function getApiBaseUrl(): string {
-  const baseUrl = import.meta.env.MAIN_VITE_API_BASE_URL
-
-  if (!baseUrl) {
-    throw new Error('MAIN_VITE_API_BASE_URL is not configured')
-  }
+  const baseUrl = import.meta.env.MAIN_VITE_API_BASE_URL || 'http://localhost:8787'
 
   let url: URL
-
   try {
     url = new URL(baseUrl)
   } catch {
@@ -77,7 +79,6 @@ function getApiBaseUrl(): string {
     }
   } else {
     const isSecure = url.protocol === 'https:'
-
     const isLocalHttp = url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname)
 
     if (!isSecure && !isLocalHttp) {
@@ -89,102 +90,194 @@ function getApiBaseUrl(): string {
 }
 
 async function requestJson(
-    path:
-      string,
-
-    init?:
-      RequestInit,
-
-    acceptedErrorStatuses:
-      readonly number[] = []
-  ): Promise<unknown> {
+  path: string,
+  init?: RequestInit,
+  acceptedErrorStatuses: readonly number[] = []
+): Promise<unknown> {
   const controller = new AbortController()
-
-  const timeout = setTimeout(() => {
-    controller.abort()
-  }, DEFAULT_TIMEOUT_MS)
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
 
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    const url = `${getApiBaseUrl()}${path}`
+    const response = await fetch(url, {
       ...init,
-
-      signal: controller.signal,
-
-      headers: {
-        Accept: 'application/json',
-
-        ...init?.headers
-      }
+      signal: controller.signal
     })
 
-    let body: unknown = null
+    const isAcceptedError = acceptedErrorStatuses.includes(response.status)
 
-    try {
-      body = await response.json()
-    } catch {
-      body = null
-    }
+    if (!response.ok && !isAcceptedError) {
+      let code = 'backend_unavailable'
+      let retryAfterSeconds: number | undefined
 
-    if (
-        !response.ok &&
-        !acceptedErrorStatuses.includes(
-          response.status
-        )
-      ) {
-      const code =
-        typeof body === 'object' &&
-        body !== null &&
-        'error' in body &&
-        typeof body.error === 'string'
-          ? body.error
-          : `http_${response.status}`
-      const retryAfterSeconds =
-        typeof body === 'object' &&
-        body !== null &&
-        'retryAfterSeconds' in body &&
-        typeof body.retryAfterSeconds === 'number' &&
-        Number.isFinite(body.retryAfterSeconds) &&
-        body.retryAfterSeconds > 0
-          ? body.retryAfterSeconds
-          : undefined
+      try {
+        const body = (await response.json()) as {
+          error?: string
+          retryAfterSeconds?: number
+        }
+
+        if (body.error) {
+          code = body.error
+        }
+        if (typeof body.retryAfterSeconds === 'number') {
+          retryAfterSeconds = body.retryAfterSeconds
+        }
+      } catch {}
+
       throw new BackendApiError(response.status, code, retryAfterSeconds)
     }
 
-    return body
+    return await response.json()
   } finally {
     clearTimeout(timeout)
   }
 }
-function getDeviceAuthorization(credential: DeviceCredential): string {
+
+function getDeviceAuthorization(credential?: DeviceCredential): string | undefined {
+  if (!credential) return undefined
   return ['Device ', credential.deviceId, '.', credential.deviceSecret].join('')
 }
+
 export async function getBackendHealth(): Promise<ApiHealthResponse> {
   const body = await requestJson('/api/health')
-
   const parsed = ApiHealthResponseSchema.safeParse(body)
-
   if (!parsed.success) {
     throw new Error('invalid_backend_health_response')
+  }
+  return parsed.data
+}
+
+// =========================================================
+// PASSWORD LOGIN HTTP
+// =========================================================
+
+export async function loginWithPasswordHttp(
+  input: PasswordLoginRequest
+): Promise<LoginResponse> {
+  const body = await requestJson('/api/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(input)
+  })
+
+  const parsed = LoginResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_login_response')
   }
 
   return parsed.data
 }
+
+// =========================================================
+// VERIFY PIN HTTP
+// =========================================================
+
+export async function verifyPinHttp(
+  sessionToken: string,
+  input: VerifyPinRequest
+): Promise<VerifyPinResponse> {
+  const body = await requestJson('/api/auth/verify-pin', {
+    method: 'POST',
+    headers: {
+      'X-Auth-Session': sessionToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(input)
+  })
+
+  const parsed = VerifyPinResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_verify_pin_response')
+  }
+
+  return parsed.data
+}
+
+// =========================================================
+// STAFF MANAGEMENT HTTP
+// =========================================================
+
+export async function listStaffHttp(sessionToken: string): Promise<StaffListResponse> {
+  const body = await requestJson('/api/staff', {
+    method: 'GET',
+    headers: {
+      'X-Auth-Session': sessionToken
+    }
+  })
+
+  const parsed = StaffListResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_staff_list_response')
+  }
+
+  return parsed.data
+}
+
+export async function createStaffHttp(
+  sessionToken: string,
+  data: CreateStaffRequest
+): Promise<{ ok: true; staff: StaffItem }> {
+  const body = await requestJson('/api/staff', {
+    method: 'POST',
+    headers: {
+      'X-Auth-Session': sessionToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+
+  return body as { ok: true; staff: StaffItem }
+}
+
+export async function updateStaffHttp(
+  sessionToken: string,
+  id: string,
+  data: UpdateStaffRequest
+): Promise<{ ok: true; staff: StaffItem }> {
+  const body = await requestJson(`/api/staff/${id}`, {
+    method: 'PUT',
+    headers: {
+      'X-Auth-Session': sessionToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+
+  return body as { ok: true; staff: StaffItem }
+}
+
+export async function deleteStaffHttp(
+  sessionToken: string,
+  id: string
+): Promise<{ ok: true }> {
+  const body = await requestJson(`/api/staff/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'X-Auth-Session': sessionToken
+    }
+  })
+
+  return body as { ok: true }
+}
+
+// =========================================================
+// DEVICE & SESSION & POS CLIENT METHODS
+// =========================================================
 
 export async function activateDevice(
   input: ActivateDeviceRequest
 ): Promise<ActivateDeviceResponse> {
   const body = await requestJson('/api/devices/activate', {
     method: 'POST',
-
     headers: {
       'Content-Type': 'application/json'
     },
-
     body: JSON.stringify(input)
   })
 
   const parsed = ActivateDeviceResponseSchema.safeParse(body)
-
   if (!parsed.success) {
     throw new Error('invalid_device_activation_response')
   }
@@ -195,33 +288,30 @@ export async function activateDevice(
 export async function getDeviceContext(credential: DeviceCredential): Promise<DeviceContext> {
   const body = await requestJson('/api/pos/context', {
     method: 'GET',
-
     headers: {
-      Authorization: getDeviceAuthorization(credential)
+      Authorization: getDeviceAuthorization(credential) || ''
     }
   })
 
   const parsed = DeviceContextSchema.safeParse(body)
-
   if (!parsed.success) {
     throw new Error('invalid_device_context_response')
   }
 
   return parsed.data
 }
+
 export async function getAuthEmployees(
   credential: DeviceCredential
 ): Promise<EmployeeListResponse> {
   const body = await requestJson('/api/auth/employees', {
     method: 'GET',
-
     headers: {
-      Authorization: getDeviceAuthorization(credential)
+      Authorization: getDeviceAuthorization(credential) || ''
     }
   })
 
   const parsed = EmployeeListResponseSchema.safeParse(body)
-
   if (!parsed.success) {
     throw new Error('invalid_employee_list_response')
   }
@@ -235,218 +325,141 @@ export async function loginEmployeeWithPin(
 ): Promise<PinLoginResponse> {
   const body = await requestJson('/api/auth/pin', {
     method: 'POST',
-
     headers: {
-      Authorization: getDeviceAuthorization(credential),
-
+      Authorization: getDeviceAuthorization(credential) || '',
       'Content-Type': 'application/json'
     },
-
     body: JSON.stringify(input)
   })
 
   const parsed = PinLoginResponseSchema.safeParse(body)
-
   if (!parsed.success) {
     throw new Error('invalid_pin_login_response')
   }
 
   return parsed.data
 }
+
 export async function getTableConfiguration(
-  credential:
-    DeviceCredential,
-
-  sessionToken:
-    string
-): Promise<
-  TableConfigurationResponse
-> {
-  const body =
-    await requestJson(
-      '/api/pos/tables/configuration',
-      {
-        method:
-          'GET',
-
-        headers: {
-          Authorization:
-            getDeviceAuthorization(
-              credential
-            ),
-
-          'X-Auth-Session':
-            sessionToken
-        }
-      }
-    )
-
-
-  const parsed =
-    TableConfigurationResponseSchema
-      .safeParse(
-        body
-      )
-
-
-  if (
-    !parsed.success
-  ) {
-    throw new Error(
-      'invalid_table_configuration_response'
-    )
+  credential: DeviceCredential | null,
+  sessionToken: string
+): Promise<TableConfigurationResponse> {
+  const headers: Record<string, string> = {
+    'X-Auth-Session': sessionToken
+  }
+  if (credential) {
+    headers.Authorization = getDeviceAuthorization(credential) || ''
   }
 
+  const body = await requestJson('/api/pos/tables/configuration', {
+    method: 'GET',
+    headers
+  })
+
+  const parsed = TableConfigurationResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_table_configuration_response')
+  }
 
   return parsed.data
 }
-
 
 export async function executeTableCommand(
-  credential:
-    DeviceCredential,
-
-  sessionToken:
-    string,
-
-  command:
-    TableManagementCommand
-): Promise<
-  TableCommandApiResponse
-> {
-  const body =
-    await requestJson(
-      '/api/pos/tables/commands',
-
-      {
-        method:
-          'POST',
-
-        headers: {
-          Authorization:
-            getDeviceAuthorization(
-              credential
-            ),
-
-          'X-Auth-Session':
-            sessionToken,
-
-          'Content-Type':
-            'application/json'
-        },
-
-        body:
-          JSON.stringify(
-            command
-          )
-      },
-
-      /*
-       * These are expected business-result
-       * statuses, not transport failures.
-       */
-      [
-        404,
-        409
-      ]
-    )
-
-
-  const parsed =
-    TableCommandApiResponseSchema
-      .safeParse(
-        body
-      )
-
-
-  if (
-    !parsed.success
-  ) {
-    throw new Error(
-      'invalid_table_command_response'
-    )
+  credential: DeviceCredential | null,
+  sessionToken: string,
+  command: TableManagementCommand
+): Promise<TableCommandApiResponse> {
+  const headers: Record<string, string> = {
+    'X-Auth-Session': sessionToken,
+    'Content-Type': 'application/json'
+  }
+  if (credential) {
+    headers.Authorization = getDeviceAuthorization(credential) || ''
   }
 
+  const body = await requestJson(
+    '/api/pos/tables/commands',
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(command)
+    },
+    [404, 409]
+  )
+
+  const parsed = TableCommandApiResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_table_command_response')
+  }
 
   return parsed.data
 }
+
 export async function getAuthSession(
-  credential: DeviceCredential,
+  credential: DeviceCredential | null,
   sessionToken: string
 ): Promise<AuthSessionResponse> {
+  const headers: Record<string, string> = {
+    'X-Auth-Session': sessionToken
+  }
+  if (credential) {
+    headers.Authorization = getDeviceAuthorization(credential) || ''
+  }
+
   const body = await requestJson('/api/auth/session', {
     method: 'GET',
-
-    headers: {
-      Authorization: getDeviceAuthorization(credential),
-
-      'X-Auth-Session': sessionToken
-    }
+    headers
   })
 
   const parsed = AuthSessionResponseSchema.safeParse(body)
-
   if (!parsed.success) {
     throw new Error('invalid_auth_session_response')
   }
 
   return parsed.data
 }
+
 export async function getAuthPermissions(
-  credential:
-    DeviceCredential,
+  credential: DeviceCredential | null,
+  sessionToken: string
+): Promise<PermissionContextResponse> {
+  const headers: Record<string, string> = {
+    'X-Auth-Session': sessionToken
+  }
+  if (credential) {
+    headers.Authorization = getDeviceAuthorization(credential) || ''
+  }
 
-  sessionToken:
-    string
-): Promise<
-  PermissionContextResponse
-> {
-  const body =
-    await requestJson(
-      '/api/auth/permissions',
-      {
-        method: 'GET',
+  const body = await requestJson('/api/auth/permissions', {
+    method: 'GET',
+    headers
+  })
 
-        headers: {
-          Authorization:
-            getDeviceAuthorization(
-              credential
-            ),
-
-          'X-Auth-Session':
-            sessionToken
-        }
-      }
-    )
-
-  const parsed =
-    PermissionContextResponseSchema
-      .safeParse(body)
-
+  const parsed = PermissionContextResponseSchema.safeParse(body)
   if (!parsed.success) {
-    throw new Error(
-      'invalid_permission_context_response'
-    )
+    throw new Error('invalid_permission_context_response')
   }
 
   return parsed.data
 }
+
 export async function logoutAuthSession(
-  credential: DeviceCredential,
+  credential: DeviceCredential | null,
   sessionToken: string
 ): Promise<LogoutResponse> {
+  const headers: Record<string, string> = {
+    'X-Auth-Session': sessionToken
+  }
+  if (credential) {
+    headers.Authorization = getDeviceAuthorization(credential) || ''
+  }
+
   const body = await requestJson('/api/auth/logout', {
     method: 'POST',
-
-    headers: {
-      Authorization: getDeviceAuthorization(credential),
-
-      'X-Auth-Session': sessionToken
-    }
+    headers
   })
 
   const parsed = LogoutResponseSchema.safeParse(body)
-
   if (!parsed.success) {
     throw new Error('invalid_logout_response')
   }

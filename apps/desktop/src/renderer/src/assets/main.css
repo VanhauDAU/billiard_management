@@ -1,5 +1,6 @@
 @import './base.css';
 @import './auth.css';
+@import './billiards-ui.css';
 * {
   box-sizing: border-box;
 }

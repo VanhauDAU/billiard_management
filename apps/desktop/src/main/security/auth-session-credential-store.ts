@@ -23,37 +23,26 @@ import {
 export interface StoredAuthSessionCredential {
   version: 1
 
-  deviceId: string
+  deviceId?: string
 
   sessionToken: string
 }
 
-
 const CREDENTIAL_VERSION = 1
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-
-function getAuthDirectory():
-string {
+function getAuthDirectory(): string {
   return join(
-    app.getPath(
-      'userData'
-    ),
+    app.getPath('userData'),
     'auth'
   )
 }
 
-
-function getCredentialPath():
-string {
+function getCredentialPath(): string {
   return join(
     getAuthDirectory(),
     'session.bin'
   )
 }
-
 
 function isValidCredential(
   value: unknown
@@ -73,16 +62,6 @@ function isValidCredential(
   if (
     candidate.version !==
       CREDENTIAL_VERSION
-  ) {
-    return false
-  }
-
-  if (
-    typeof candidate.deviceId !==
-      'string' ||
-    !UUID_PATTERN.test(
-      candidate.deviceId
-    )
   ) {
     return false
   }
