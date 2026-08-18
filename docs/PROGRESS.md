@@ -10,8 +10,9 @@ Trạng thái hiện tại:
 
 - **M0 Foundation:** ✅ Done.
 - **M1.1 Device identity + Store context:** ✅ Done theo gate kỹ thuật/local đã chốt.
+- **Post-M1.1 hardening:** 🟡 đang hoàn tất trước khi mở rộng remote/pilot.
 - **M1.2 Employee + PIN/AuthGate:** ⏭ Next.
-- **Remote/pilot:** chưa deploy; còn security hardening, auth/permission, nghiệp vụ POS, printing, mobile và offline/sync.
+- **Remote/pilot:** chưa deploy; còn auth/permission, nghiệp vụ POS, printing, mobile và offline/sync.
 
 Scope V1 đã khóa: [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
 
@@ -112,43 +113,58 @@ Bàn trở về available
 
 - one-time activation token; D1 chỉ lưu SHA-256 token,
 - device secret 256-bit; D1 chỉ lưu SHA-256 credential,
-- reactivation cùng Store + installation sẽ rotate credential và tăng `credential_version`,
+- reactivation cùng Store + installation rotate credential và tăng `credential_version`,
 - device auth middleware với `Authorization: Device <deviceId>.<deviceSecret>`,
-- revoked/inactive device và inactive Store bị fail-closed,
-- Store context được resolve server-side từ `devices.store_id`, không tin `x-store-id` từ client,
+- revoked/inactive device và inactive Store fail-closed,
+- Store context resolve server-side từ `devices.store_id`, không tin `x-store-id` từ client,
 - `GET /api/pos/context`,
 - shared Zod contracts cho activation/context,
 - Electron tạo `installationId` ổn định trong `userData`,
 - Electron Main lưu device credential bằng async `safeStorage`; renderer không nhận raw secret,
 - IPC/preload API hẹp cho `device.getState()` và `device.activate()`,
-- DeviceGate có các trạng thái not-activated / reactivation / blocked / unavailable / ready,
+- DeviceGate có not-activated / reactivation / blocked / unavailable / local-error / ready,
 - Electron main bundle `@billiards/contracts` để tránh runtime raw-TS ESM resolution,
-- Worker integration tests cho activation, one-time token, spoof Store, revoked device, wrong secret, Store suspended, token expired và credential rotation.
+- Electron dev/start tự bảo đảm binary Electron 43 đã được tải,
+- packaging identity đã đổi khỏi scaffold sang `com.billiards.pos` / `Billiards POS`,
+- Worker tests bao phủ activation, one-time token, spoof Store, revoked device, wrong secret, Store suspended, token expired, credential rotation và parser boundary.
 
 Automated test hiện tại:
 
 ```text
-Store Durable Object tests   9
-Device context tests         9
--------------------------------
-Worker tests total          18
+Store Durable Object tests          9
+Device context/activation tests     9
+Device authorization parser tests   4
+--------------------------------------
+Worker tests total                 22
 ```
 
 Local Worker activation + authenticated `/api/pos/context` đã smoke-test thành công. Device activation screen cũng đã chạy trên Electron. Full packaged/restart smoke vẫn là release/pilot gate, không thay thế bằng typecheck.
 
 ### Post-M1.1 hardening
 
-Đợt review sau merge phát hiện và đang xử lý các điểm sau trước khi coi boundary đủ an toàn cho remote/pilot:
+Đợt review sau merge đã sửa:
 
-- thu hẹp trusted renderer trong Electron production về đúng packaged renderer thay vì mọi `file:` URL,
-- IPC chỉ chấp nhận top-level trusted frame,
-- packaged Desktop chỉ được gửi backend traffic qua HTTPS; HTTP chỉ cho loopback khi development,
-- siết runtime contracts cho UUID/device secret,
-- xử lý đúng `safeStorage` key-rotation signal,
-- `/api/system/*` hiện là diagnostic foundation và phải được protect/disable trước remote deployment,
-- cần chốt policy nếu cùng một `installationId` được activate sang Store khác,
-- cần recovery UX cho credential/installation file bị hỏng thay vì generic retry loop,
-- activation-token issuance API/admin UI chưa có; hiện mới có verification/consume flow.
+- packaged Electron chỉ trust đúng packaged renderer file thay vì mọi `file:` URL,
+- privileged IPC chỉ chấp nhận top-level trusted renderer frame,
+- packaged Desktop chỉ gửi backend traffic qua HTTPS; development HTTP chỉ cho loopback,
+- runtime contracts siết UUID/device-secret format,
+- Device Authorization parser validate UUID/secret và chấp nhận scheme case-insensitive,
+- `safeStorage` xử lý key-rotation signal đúng luồng async,
+- credential file hỏng chuyển sang reactivation thay vì retry loop vô hạn,
+- malformed installation identity fail-closed và không tự sinh ID mới,
+- Electron binary lazy-install được xử lý trong `dev/start`,
+- Electron builder identity/update placeholder scaffold đã được dọn.
+
+Còn phải chốt/xử lý trước remote/pilot:
+
+- `/api/system/*` diagnostic foundation phải được protect/disable khỏi public surface,
+- policy nếu cùng một `installationId` được activate sang Store khác,
+- activation-token issuance API/admin UI; hiện mới có verification/consume flow,
+- quy trình quản trị để reset/repair installation identity bị hỏng,
+- `devices.last_seen_at` heartbeat/touch policy,
+- align TypeScript version giữa `@billiards/contracts` và Worker/Desktop,
+- automated Desktop security tests,
+- review/test rõ invariant activation batch trước remote deployment.
 
 ### M1.2 - Employee + PIN authentication
 
@@ -262,6 +278,7 @@ Pilot còn cần:
 - protect/disable system diagnostics,
 - remote D1/deployment review,
 - full Desktop packaged activation/restart smoke,
+- signing/notarization/update channel,
 - backup/restore checks,
 - observability tối thiểu,
 - Windows installer/update channel,
@@ -271,7 +288,7 @@ Pilot còn cần:
 
 **M0 đã đóng. M1.1 đã đóng về functional/local gate.** Thứ tự tiếp theo:
 
-1. Hoàn tất post-M1.1 security hardening không đổi nghiệp vụ.
+1. Chốt các hardening còn mở có ảnh hưởng policy/remote deployment.
 2. Chốt cross-Store installation policy và activation-token issuance boundary.
 3. M1.2 Employee + PIN/AuthGate.
 4. M1.3 Permission context.
