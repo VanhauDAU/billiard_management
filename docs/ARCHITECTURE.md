@@ -22,7 +22,7 @@ Hiện foundation + trust boundary đã có:
 - trusted Store context resolve server-side từ Device.
 - Electron installation identity + encrypted device credential ở Main Process.
 - DeviceGate ở renderer nhưng không expose raw device secret.
-- 18 Worker tests: 9 Store DO + 9 Device context.
+- 22 Worker tests: 9 Store DO + 9 Device context/activation + 4 Device authorization parser.
 - GitHub Actions CI quality gate.
 
 Bước nghiệp vụ tiếp theo là **M1.2 - Employee + PIN/AuthGate**, sau đó mới gắn Permission context và POS business commands.
@@ -115,11 +115,11 @@ Nguyên tắc:
 - Renderer không expose `ipcRenderer` trực tiếp.
 - Preload chỉ expose API hẹp, typed.
 - `deviceSecret` chỉ tồn tại ở Main Process/secure storage và Authorization header; renderer không có API đọc secret.
-- IPC privileged handler phải validate sender và chỉ chấp nhận top-level trusted renderer frame.
+- IPC privileged handler validate sender và chỉ chấp nhận top-level trusted renderer frame.
 - Development renderer được trust theo Vite renderer origin; packaged renderer được trust theo đúng packaged renderer file, không phải mọi `file:` URL.
 - Main Process quản lý network orchestration, local storage, printing và updater.
 - Packaged Desktop chỉ kết nối backend qua HTTPS. HTTP chỉ được phép cho loopback trong development.
-- Navigation/open-external được kiểm soát ở Main Process; external URL chỉ mở qua allowlisted secure protocol.
+- Navigation/open-external được kiểm soát ở Main Process; external URL chỉ mở qua HTTPS.
 
 ### Device local files
 
@@ -131,6 +131,17 @@ app.getPath('userData')/
 ```
 
 `credential.bin` dùng Electron async `safeStorage`; code xử lý key-rotation signal trước khi ghi lại credential.
+
+Recovery hiện tại:
+
+- credential file decrypt/parse/shape lỗi → `needs_reactivation`, giữ nguyên installation ID và yêu cầu activation token mới,
+- secure storage unavailable → `local_error`, không gửi credential/activation,
+- installation identity malformed → `local_error`, fail-closed và **không tự sinh UUID mới** để tránh tạo stale/orphan device record,
+- quy trình admin để reset/repair installation identity vẫn cần thiết trước pilot.
+
+Electron 43 dùng lazy binary download; `dev/start` chủ động chạy `install-electron --no` để fresh clone không fail trước khi app khởi động.
+
+Packaging identity hiện dùng `com.billiards.pos`, product `Billiards POS`; URL auto-update scaffold mẫu đã bị loại bỏ. Signing/notarization/update channel thật vẫn là release gate sau.
 
 ## 6. D1 Control Plane - model hiện tại
 
@@ -244,7 +255,7 @@ Desktop Main
       ▼
 Cloudflare Worker
       │
-      ├── parse credential
+      ├── validate scheme/UUID/secret format
       ├── SHA-256 secret + constant-time compare
       ├── lookup D1 Device + Store
       ├── reject invalid/revoked/inactive states
@@ -554,7 +565,7 @@ Worker Vitest
 Desktop typecheck + build
 ```
 
-Worker tests hiện gồm 18 test: 9 Store DO + 9 Device context.
+Worker tests hiện gồm 22 test: 9 Store DO + 9 Device context/activation + 4 Device authorization parser.
 
 Desktop DeviceGate/secure-storage path hiện được bảo vệ bởi typecheck/build + manual smoke; automated Electron integration test chưa có.
 
@@ -576,12 +587,12 @@ Update app không được xóa local operational/cache database và không forc
 
 ## 21. Security/hardening còn mở
 
-Không coi local CI xanh là production security sign-off. Trước remote/pilot phải xử lý/chốt:
+Không coi local/CI xanh là production security sign-off. Trước remote/pilot phải xử lý/chốt:
 
 1. Protect hoặc disable `/api/system/*` diagnostics khỏi public unauthenticated surface.
 2. Chốt cross-Store policy cho cùng một `installationId`; hiện schema uniqueness là `(store_id, installation_id)`.
 3. Thêm activation-token issuance/admin boundary; hiện mới có consume/verification flow.
-4. Thêm recovery path có kiểm soát cho corrupted `credential.bin` / invalid installation identity; không tự regenerate identity im lặng.
+4. Thêm quy trình quản trị để reset/repair installation identity hỏng; code hiện fail-closed và không tự rotate identity.
 5. Xem xét heartbeat/touch policy cho `devices.last_seen_at`.
 6. Align TypeScript version giữa `@billiards/contracts` và Worker/Desktop.
 7. Thêm automated Desktop security tests cho trusted URL, IPC sender và local credential state.
