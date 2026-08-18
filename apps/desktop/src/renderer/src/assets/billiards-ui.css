@@ -112,26 +112,17 @@
 }
 
 /* Brand Logo */
-.sapo-brand-logo {
+.sapo-brand-logo-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
 }
 
-.sapo-logo-text-green {
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: #00c261;
-}
-
-.sapo-logo-text-blue {
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: #0088ff;
+.sapo-brand-logo-img {
+  height: 48px;
+  max-width: 220px;
+  object-fit: contain;
 }
 
 /* Tabs */
@@ -668,7 +659,7 @@
 }
 
 .sidebar-collapsed .admin-sidebar {
-  width: 72px;
+  width: 68px;
 }
 
 /* Brand */
@@ -676,42 +667,80 @@
   height: 64px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 20px;
+  justify-content: space-between;
+  padding: 0 14px;
   border-bottom: 1px solid #f1f5f9;
 }
 
-.admin-brand-icon {
-  font-size: 26px;
+.sidebar-collapsed .admin-sidebar-brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-brand-logo-wrap {
+  display: flex;
+  align-items: center;
+  max-width: 170px;
+  overflow: hidden;
+}
+
+.admin-brand-logo-img {
+  height: 38px;
+  max-width: 165px;
+  object-fit: contain;
+}
+
+.sidebar-header-toggle-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  border-radius: 6px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
   flex-shrink: 0;
 }
 
-.admin-brand-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.admin-brand-title {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #0f172a;
-}
-
-.admin-brand-badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
+.sidebar-header-toggle-btn:hover {
   background: #eff6ff;
+  border-color: #bfdbfe;
   color: #2563eb;
-  padding: 2px 6px;
-  border-radius: 4px;
+}
+
+.sidebar-header-toggle-btn.collapsed {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+  background: #ffffff;
+  border-radius: 8px;
+}
+
+/* Collapsed Sidebar Icon-Only View */
+.sidebar-collapsed .admin-nav-btn,
+.sidebar-collapsed .admin-nav-group-header {
+  justify-content: center;
+  padding: 10px 0;
+  width: 100%;
+}
+
+.sidebar-collapsed .group-header-left {
+  justify-content: center;
+  gap: 0;
+}
+
+.sidebar-collapsed .nav-btn-icon {
+  font-size: 20px;
+  margin: 0;
+}
+
+.sidebar-collapsed .admin-settings-pinned-btn {
+  justify-content: center;
+  padding: 10px 0;
 }
 
 /* Store Badge */
@@ -2123,11 +2152,15 @@
   gap: 20px;
 }
 
-.pos-brand-logo .brand-logo-text {
-  font-size: 24px;
-  font-weight: 900;
-  color: #0066ff;
-  letter-spacing: -0.04em;
+.pos-brand-logo {
+  display: flex;
+  align-items: center;
+}
+
+.pos-brand-logo-img {
+  height: 36px;
+  max-width: 150px;
+  object-fit: contain;
 }
 
 .pos-search-wrapper {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { DesktopAuthState } from '../../../../shared/auth-api'
+import logoBlack from '../../assets/logo_black_1200x400.svg'
 import { OverviewDashboard } from '../admin/OverviewDashboard'
 import { ReportsScreen } from '../admin/ReportsScreen'
 import { InvoicesHistoryScreen } from '../admin/InvoicesHistoryScreen'
@@ -45,7 +46,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
-  // Single accordion state: Open one group at a time ("mở cái này thì đóng cái kia")
+  // Single accordion state: Open one group at a time
   const [expandedGroup, setExpandedGroup] = useState<string | null>('reports')
 
   useEffect(() => {
@@ -60,6 +61,16 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
 
   const toggleGroup = (groupKey: string) => {
     setExpandedGroup((prev) => (prev === groupKey ? null : groupKey))
+  }
+
+  const handleGroupClick = (group: NavGroup) => {
+    if (isSidebarCollapsed) {
+      if (group.children && group.children.length > 0) {
+        setActiveView(group.children[0].key)
+      }
+      return
+    }
+    toggleGroup(group.key)
   }
 
   // Define sidebar menu structure according to exact user requirements
@@ -122,14 +133,31 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
     <div className={`admin-layout-wrapper ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Modern Left Sidebar */}
       <aside className="admin-sidebar">
-        {/* Brand Header */}
+        {/* Brand Header with Logo on Left and Collapse Button on Right */}
         <div className="admin-sidebar-brand">
-          <div className="admin-brand-icon">🎱</div>
-          {!isSidebarCollapsed && (
-            <div className="admin-brand-info">
-              <span className="admin-brand-title">Billiard POS</span>
-              <span className="admin-brand-badge">Quản Trị</span>
-            </div>
+          {!isSidebarCollapsed ? (
+            <>
+              <div className="sidebar-brand-logo-wrap">
+                <img src={logoBlack} alt="Brand Logo" className="admin-brand-logo-img" />
+              </div>
+              <button
+                type="button"
+                className="sidebar-header-toggle-btn"
+                onClick={() => setIsSidebarCollapsed(true)}
+                title="Thu dọn sidebar chỉ cần icon"
+              >
+                <span>◀</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="sidebar-header-toggle-btn collapsed"
+              onClick={() => setIsSidebarCollapsed(false)}
+              title="Mở rộng sidebar"
+            >
+              <span>▶</span>
+            </button>
           )}
         </div>
 
@@ -180,7 +208,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
                 <button
                   type="button"
                   className={`admin-nav-group-header ${isChildActive ? 'child-active' : ''}`}
-                  onClick={() => toggleGroup(group.key)}
+                  onClick={() => handleGroupClick(group)}
                   title={isSidebarCollapsed ? group.label : undefined}
                 >
                   <div className="group-header-left">
@@ -217,9 +245,8 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
           })}
         </nav>
 
-        {/* Sidebar Footer: Pinned Settings Button & Collapse Toggle */}
+        {/* Sidebar Footer: Pinned Settings Button */}
         <div className="admin-sidebar-footer">
-          {/* Pinned Settings Button */}
           <button
             type="button"
             className={`admin-nav-btn admin-settings-pinned-btn ${activeView === 'settings' ? 'active' : ''}`}
@@ -236,17 +263,6 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
               </span>
             )}
             {activeView === 'settings' && <span className="nav-active-indicator"></span>}
-          </button>
-
-          {/* Collapse toggle */}
-          <button
-            type="button"
-            className="admin-collapse-toggle-btn"
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            title={isSidebarCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
-          >
-            <span>{isSidebarCollapsed ? '⏩' : '⏪'}</span>
-            {!isSidebarCollapsed && <span>Thu gọn</span>}
           </button>
         </div>
       </aside>

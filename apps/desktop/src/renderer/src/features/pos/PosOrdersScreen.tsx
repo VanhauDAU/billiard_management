@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import logoBlack from '../../assets/logo_black_1200x400.svg'
 
 interface PosOrder {
   id: string
@@ -37,7 +38,7 @@ export function PosOrdersScreen({ userName = 'Lê văn đại', onLogout }: PosO
       {/* Top Header */}
       <header className="pos-orders-topbar">
         <div className="pos-brand-logo">
-          <span className="brand-logo-text">Sapo</span>
+          <img src={logoBlack} alt="Brand Logo" className="pos-brand-logo-img" />
         </div>
 
         <div className="pos-search-wrapper">

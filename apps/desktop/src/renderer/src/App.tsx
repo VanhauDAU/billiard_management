@@ -38,7 +38,7 @@ function App(): React.JSX.Element {
         <div style={{ textAlign: 'center', color: '#1e293b' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>🎱</div>
           <div style={{ fontSize: '15px', fontWeight: 600, color: '#475569' }}>
-            Đang khởi động Billiard POS...
+            Đang khởi động Pro POS...
           </div>
         </div>
       </div>
