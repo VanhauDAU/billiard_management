@@ -1,13 +1,20 @@
 import { DurableObject } from 'cloudflare:workers'
 import { migrateStoreSchema } from './store-schema'
+import type {
+  TableConfigurationResponse
+} from '@billiards/contracts'
 
+import {
+  StoreTableRepository
+} from './table/store-table-repository'
 type MetadataRow = {
   key: string
   value: string
 }
 export class StoreDurableObject extends DurableObject {
   private readonly sql: SqlStorage
-
+  private readonly tableRepository:
+  StoreTableRepository
   constructor(
     ctx:
       DurableObjectState,
@@ -22,7 +29,10 @@ export class StoreDurableObject extends DurableObject {
 
     this.sql =
       ctx.storage.sql
-
+    this.tableRepository =
+    new StoreTableRepository(
+      this.sql
+    )
 
     /*
     * Schema migration must complete before
@@ -36,6 +46,7 @@ export class StoreDurableObject extends DurableObject {
         )
       }
     )
+    
   }
 
   private ensureStoreIdentity(storeId: string): void {
@@ -72,7 +83,41 @@ export class StoreDurableObject extends DurableObject {
       throw new Error('store_identity_mismatch')
     }
   }
+  async getTableConfiguration(
+    storeId:
+      string
+  ): Promise<
+    TableConfigurationResponse
+  > {
+    if (
+      typeof storeId !==
+        'string' ||
 
+      storeId.length === 0
+    ) {
+      throw new Error(
+        'invalid_store_id'
+      )
+    }
+
+
+    /*
+    * storeId supplied here will eventually
+    * come from trusted Worker DeviceContext.
+    *
+    * It is NOT accepted from Desktop/client
+    * as tenant authority.
+    */
+    this.ensureStoreIdentity(
+      storeId
+    )
+
+
+    return (
+      this.tableRepository
+        .getConfiguration()
+    )
+  }
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     if (url.pathname !== '/health') {
