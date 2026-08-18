@@ -1,3 +1,8 @@
+import type {
+  ActivateDesktopDeviceInput,
+  DesktopDeviceState
+} from '../shared/device-api'
+
 export interface BackendHealth {
   ok: boolean
   service: string
@@ -5,10 +10,23 @@ export interface BackendHealth {
 
 export interface DesktopApi {
   app: {
-    getVersion(): Promise<string>
+    getVersion():
+      Promise<string>
   }
 
   backend: {
-    health(): Promise<BackendHealth>
+    health():
+      Promise<BackendHealth>
+  }
+
+  device: {
+    getState():
+      Promise<DesktopDeviceState>
+
+    activate(
+      input:
+        ActivateDesktopDeviceInput
+    ):
+      Promise<DesktopDeviceState>
   }
 }
