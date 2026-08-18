@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { loadSavedZones, type ZoneConfig } from '../admin/ZoneTableSettingsScreen'
 
 interface TableItem {
   id: string
@@ -13,61 +14,47 @@ interface TableItem {
 }
 
 export function PosZoneTablesScreen(): React.JSX.Element {
-  const [selectedArea, setSelectedArea] = useState('Khu vực 1')
+  const [configuredZones, setConfiguredZones] = useState<ZoneConfig[]>(loadSavedZones)
+  const [selectedAreaId, setSelectedAreaId] = useState<string>(() => {
+    const saved = loadSavedZones()
+    return saved.length > 0 ? saved[0].id : 'zone_1'
+  })
   const [statusFilter, setStatusFilter] = useState<'all' | 'occupied' | 'available'>('all')
 
-  const [tables, setTables] = useState<TableItem[]>([
-    {
-      id: 't1',
-      number: '1',
-      area: 'Khu vực 1',
-      status: 'occupied',
-      duration: '04:09',
-      itemsCount: 3,
-      currentAmount: 185000,
-      items: [
-        { name: 'Redbull Thái', quantity: 2, price: 25000 },
-        { name: 'Mì tôm xúc xích', quantity: 1, price: 35000 }
-      ]
-    },
-    { id: 't2', number: '2', area: 'Khu vực 1', status: 'available' },
-    { id: 't3', number: '3', area: 'Khu vực 1', status: 'available' },
-    {
-      id: 't4',
-      number: '4',
-      area: 'Khu vực 1',
-      status: 'occupied',
-      duration: '04:06',
-      itemsCount: 1,
-      currentAmount: 0,
-      items: []
-    },
-    { id: 't5', number: '5', area: 'Khu vực 1', status: 'available' },
-    { id: 't6', number: '6', area: 'Khu vực 1', status: 'available' },
-    {
-      id: 't7',
-      number: '7',
-      area: 'Khu vực 1',
-      status: 'occupied',
-      duration: '04:14',
-      itemsCount: 1,
-      currentAmount: 140000,
-      items: [{ name: 'Cà phê sữa đá', quantity: 1, price: 25000 }]
-    },
-    { id: 't8', number: '8', area: 'Khu vực 1', status: 'available' },
-    {
-      id: 't9',
-      number: '9',
-      area: 'Khu vực 1',
-      status: 'occupied',
-      duration: '03:57',
-      itemsCount: 2,
-      currentAmount: 105000,
-      items: [{ name: 'Sting Dâu', quantity: 2, price: 18000 }]
-    },
-    { id: 't10', number: '10', area: 'Khu vực 1', status: 'available' },
-    { id: 't11', number: '0023', area: 'Khu vực 1', status: 'available' }
-  ])
+  // Build live table states
+  const [tables, setTables] = useState<TableItem[]>(() => {
+    const saved = loadSavedZones()
+    const allTables: TableItem[] = []
+    saved.forEach((z) => {
+      z.tables.forEach((t, idx) => {
+        // Some initial active demo tables for zone 1
+        const isOccupiedDemo = z.id === saved[0]?.id && (idx === 0 || idx === 3 || idx === 6 || idx === 8)
+        allTables.push({
+          id: t.id,
+          number: t.name,
+          area: z.name,
+          status: isOccupiedDemo ? 'occupied' : 'available',
+          duration: isOccupiedDemo ? `0${idx + 1}:15` : undefined,
+          itemsCount: isOccupiedDemo ? (idx === 0 ? 3 : 1) : undefined,
+          currentAmount: isOccupiedDemo ? (idx === 0 ? 185000 : 105000) : undefined,
+          items: isOccupiedDemo ? [{ name: 'Redbull Thái', quantity: 2, price: 25000 }] : undefined
+        })
+      })
+    })
+    return allTables
+  })
+
+  // Reload zones when opening
+  useEffect(() => {
+    const loaded = loadSavedZones()
+    setConfiguredZones(loaded)
+    if (loaded.length > 0 && !loaded.some((z) => z.id === selectedAreaId)) {
+      setSelectedAreaId(loaded[0].id)
+    }
+  }, [])
+
+  const currentZone = configuredZones.find((z) => z.id === selectedAreaId) || configuredZones[0]
+  const currentZoneName = currentZone ? currentZone.name : 'Khu vực 1'
 
   // Modals state
   const [selectedTable, setSelectedTable] = useState<TableItem | null>(null)
@@ -85,10 +72,11 @@ export function PosZoneTablesScreen(): React.JSX.Element {
     { name: 'Bia Tiger Crystal', price: 28000, cat: 'Bia' }
   ]
 
-  const emptyCount = tables.filter((t) => t.status === 'available').length
-  const totalCount = tables.length
+  const zoneTables = tables.filter((t) => t.area === currentZoneName)
+  const emptyCount = zoneTables.filter((t) => t.status === 'available').length
+  const totalCount = zoneTables.length
 
-  const filteredTables = tables.filter((t) => {
+  const filteredTables = zoneTables.filter((t) => {
     if (statusFilter === 'occupied') return t.status === 'occupied'
     if (statusFilter === 'available') return t.status === 'available'
     return true
@@ -181,18 +169,19 @@ export function PosZoneTablesScreen(): React.JSX.Element {
 
   return (
     <div className="pos-zone-screen">
-      {/* Top Header Bar with Zone Selector & Status Tabs */}
+      {/* Top Header Bar with Dynamic Zone Selector & Status Tabs */}
       <div className="pos-zone-topbar">
-        <div className="pos-zone-selector">
-          <button
-            type="button"
-            className="btn-zone-active"
-            onClick={() =>
-              setSelectedArea((prev) => (prev === 'Khu vực 1' ? 'Khu vực 2 (Líp)' : 'Khu vực 1'))
-            }
-          >
-            {selectedArea}
-          </button>
+        <div className="pos-zone-selector" style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
+          {configuredZones.map((z) => (
+            <button
+              key={z.id}
+              type="button"
+              className={`btn-zone-active ${selectedAreaId === z.id ? 'active' : ''}`}
+              onClick={() => setSelectedAreaId(z.id)}
+            >
+              {z.name}
+            </button>
+          ))}
         </div>
 
         <div className="pos-status-tabs">
