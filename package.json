@@ -15,6 +15,7 @@
     "typecheck:worker:test": "pnpm --dir apps/worker run typecheck:test",
 
     "test:worker": "pnpm --dir apps/worker test",
+    "cli:provision": "tsx scripts/provision-store.ts",
 
     "ci": "pnpm typecheck:contracts && pnpm typecheck:worker && pnpm typecheck:worker:test && pnpm test:worker && pnpm build:desktop"
   },

@@ -1,62 +1,49 @@
 # Billiards Mobile PWA
 
-React + TypeScript + Vite scaffold cho Mobile PWA của hệ thống quản lý billiards.
+React + TypeScript + Vite scaffold cho Mobile PWA của hệ thống quản lý quán billiards.
 
-## Trạng thái
+## 1. Trạng thái hiện tại
 
 **Deferred scaffold.** Mobile chưa phải operational client ở M1 hiện tại.
 
-Thứ tự triển khai đã chốt:
+Thứ tự triển khai đã chốt trong Roadmap:
 
 ```text
-Desktop online vertical slice
-      ↓
+Desktop online vertical slice (M1)
+       ↓
 Device / Employee / Permission
-      ↓
+       ↓
 Tables / Session / Product / Bill / Payment
-      ↓
-Mobile PWA + realtime
+       ↓
+Mobile PWA + Realtime State Sync (M4)
 ```
 
-Không triển khai business rule riêng cho Mobile trước khi contracts/commands phía server ổn định.
+Không triển khai business rule riêng cho Mobile trước khi contracts/commands phía server hoàn toàn ổn định.
 
-## Kiến trúc mục tiêu
+---
 
-Mobile sau này là full operational client theo permission, không chỉ viewer:
+## 2. Kiến trúc mục tiêu (M4)
 
-- xem trạng thái bàn,
-- mở bàn,
-- thêm sản phẩm,
-- chuyển bàn,
-- gộp bill,
-- thanh toán,
-- xem hóa đơn,
-- xem báo cáo/quản lý theo permission.
+Mobile PWA sau này là full operational client theo quyền hạn được cấp (`PermissionContext`):
 
-Mobile phải dùng chung:
+- Xem trạng thái và sơ đồ bàn realtime.
+- Mở bàn tính giờ cho khách.
+- Gọi món / thêm sản phẩm tại bàn.
+- Chuyển bàn, gộp bill.
+- Xem hóa đơn và thanh toán.
+- Xem báo cáo doanh thu theo quyền.
 
-- Worker APIs,
-- trusted Store/Auth/Permission boundary,
-- `@billiards/contracts`,
-- command semantics,
-- server-side business validation.
+### Ranh giới kiến trúc:
+Mobile bắt buộc phải dùng chung:
+- Cloudflare Worker APIs qua HTTPS.
+- Trusted Store / Auth / Permission boundaries.
+- Package `@billiards/contracts`.
+- Command semantics & idempotency.
+- Server-side business validation (không fork logic tính tiền ra client).
 
-Không fork pricing/table/session/bill/payment logic riêng vào PWA.
+---
 
-## Chưa triển khai
-
-Hiện chưa có:
-
-- Mobile device activation/authentication hoàn chỉnh,
-- Employee PIN AuthGate,
-- permission context,
-- realtime Store DO connection,
-- PWA install/offline strategy,
-- operational screens.
-
-Các mục trên sẽ được thêm theo milestone, không coi scaffold hiện tại là feature hoàn chỉnh.
-
-## Development
+## 3. Khởi chạy Local
 
 Trong thư mục `apps/mobile`:
 
@@ -64,12 +51,11 @@ Trong thư mục `apps/mobile`:
 pnpm dev
 ```
 
-Các script cụ thể xem tại `package.json`.
+---
 
-## Tài liệu liên quan
+## 4. Tài liệu liên quan
 
-- `../../docs/ARCHITECTURE.md`
-- `../../docs/PROGRESS.md`
-- `../../docs/SYSTEM_SCOPE_V1.md`
-
-Khi bắt đầu milestone Mobile, cập nhật README này cùng contracts và security boundary trước khi thêm UI nghiệp vụ lớn.
+- [`../../docs/01-phantich/SYSTEM_SCOPE_V1.md`](../../docs/01-phantich/SYSTEM_SCOPE_V1.md)
+- [`../../docs/02-tongquan/ARCHITECTURE.md`](../../docs/02-tongquan/ARCHITECTURE.md)
+- [`../../docs/02-tongquan/ROADMAP.md`](../../docs/02-tongquan/ROADMAP.md)
+- [`../../docs/02-tongquan/PROGRESS.md`](../../docs/02-tongquan/PROGRESS.md)

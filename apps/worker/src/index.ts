@@ -10,6 +10,7 @@ import { deviceRoutes } from "./routes/devices";
 import { posRoutes } from "./routes/pos";
 
 import { authRoutes } from "./routes/auth";
+import { staffRoutes } from "./routes/staff";
 
 export { StoreDurableObject } from "./durable-objects/store-durable-object";
 
@@ -131,5 +132,7 @@ app.route("/api/devices", deviceRoutes);
 app.route("/api/pos", posRoutes);
 
 app.route("/api/auth", authRoutes);
+
+app.route("/api/staff", staffRoutes);
 
 export default app;

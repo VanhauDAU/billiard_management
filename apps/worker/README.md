@@ -1,39 +1,39 @@
 # Billiards API Worker
 
-Cloudflare Worker dùng Hono làm gateway/API cho hệ thống quản lý billiards.
+Cloudflare Worker sử dụng Hono framework làm gateway/API cho hệ thống quản lý quán billiards.
 
-## Trách nhiệm hiện tại
+## 1. Trách nhiệm & Ranh giới Hệ thống
 
-- HTTP API entrypoint.
-- D1 control-plane access qua binding `DB`.
-- `STORE_DO` → SQLite-backed `StoreDurableObject`, một Durable Object cho mỗi Store.
-- Device activation/authentication.
-- Resolve trusted Store execution context từ Device server-side.
-- Protected system diagnostics cho foundation/ops.
-- Type-safe Cloudflare bindings qua `wrangler types`.
+- HTTP API Entrypoint và routing.
+- Quản lý D1 Control Plane qua binding `DB`.
+- Định tuyến và giao tiếp với SQLite-backed `StoreDurableObject` qua binding `STORE_DO`.
+- Middleware bảo mật: `requireDevice`, `requireAuthSession`, `requirePermission`, `requireSystemDiagnostics`.
+- Xác thực kép: Đăng nhập Quản trị (Username/Email + Password) và Đăng nhập nhanh Nhân viên (Mã PIN).
+- Quản lý phân quyền RBAC và kiểm tra quyền trước mọi mutation nghiệp vụ.
+- Store DO Table Command Executor với cơ chế chống lặp lệnh (Idempotency).
 
-Operational billiards state không đặt trực tiếp vào D1. D1 giữ control/auth/device metadata; operational state thuộc Store Durable Object.
+Dữ liệu vận hành của quán (bàn, phiên chơi, hóa đơn, thanh toán) **không** lưu trực tiếp trong D1 mà nằm hoàn toàn trong Store Durable Object tương ứng.
 
-## Trust boundary hiện tại
+---
+
+## 2. Ranh giới Xác thực & Phân quyền
 
 ```text
-Desktop Main
-      │
-      │ Authorization:
-      │ Device <deviceId>.<deviceSecret>
-      ▼
-Worker
-      │
-      ├── validate scheme / UUID / secret format
-      ├── lookup D1 devices + stores
-      ├── verify credential hash
-      ├── reject revoked/inactive state
-      └── resolve trusted Store context
+Desktop Main / Client Request
+       │
+       │ Authorization: Device <deviceId>.<deviceSecret>
+       │ Authorization: Bearer <sessionToken>
+       ▼
+Worker Middlewares:
+       ├── 1. requireDevice: Xác thực thiết bị -> Trích xuất Store context từ D1
+       ├── 2. requireAuthSession: Xác thực session -> Trích xuất User, Membership, Role
+       ├── 3. requirePermission: Kiểm tra quyền hạn của Role trong Store
+       └── 4. Enrich dữ liệu thành TrustedCommandEnvelope trước khi gọi Store DO
 ```
 
-Client-supplied `storeId` hoặc `x-store-id` không phải authority cho POS business requests. Client command envelope cũng không được tự khai `storeId/deviceId/actorId` làm identity authority.
+---
 
-## Chạy local
+## 3. Khởi chạy Local & Phát triển
 
 Từ root repository:
 
@@ -41,19 +41,15 @@ Từ root repository:
 pnpm dev:worker
 ```
 
-Worker local:
+Worker local sẽ lắng nghe tại: `http://localhost:8787`
 
-```text
-http://localhost:8787
-```
-
-Basic health:
+Kiểm tra sức khỏe Worker:
 
 ```bash
 curl http://localhost:8787/api/health
 ```
 
-### System diagnostics local
+### System Diagnostics Local
 
 Diagnostics fail-closed nếu `SYSTEM_DIAGNOSTICS_TOKEN` không tồn tại hoặc quá ngắn.
 
@@ -72,17 +68,43 @@ curl http://localhost:8787/api/system/db-health \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-`apps/worker/.dev.vars` bị ignore khỏi Git. Secret remote phải được cấu hình qua deployment secret/config, không commit vào repository.
+---
 
-## Type generation / typecheck / tests
+## 4. D1 Control Plane Migrations
 
-Sau khi thay đổi bindings trong `wrangler.jsonc`:
+Migrations hiện có:
+
+```text
+0001_init_control_plane.sql
+0002_add_device_credentials.sql
+0003_enforce_global_device_installation.sql
+0004_add_employee_pin_credentials.sql
+0005_add_user_password_and_store_permissions.sql
+```
+
+Áp dụng migrations local:
+
+```bash
+pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane --local
+```
+
+Kiểm tra ràng buộc Foreign Keys:
+
+```bash
+pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
+```
+
+---
+
+## 5. Type generation & Tests
+
+Sau khi cập nhật bindings trong `wrangler.jsonc`:
 
 ```bash
 pnpm --dir apps/worker run cf-typegen
 ```
 
-Chạy riêng:
+Chạy kiểm thử:
 
 ```bash
 pnpm --dir apps/worker run typecheck
@@ -90,145 +112,14 @@ pnpm --dir apps/worker run typecheck:test
 pnpm --dir apps/worker test
 ```
 
-Hiện có **29 Worker tests**:
+Hiện có **19 test files (171 tests)** bao quát toàn bộ logic Store DO, xác thực thiết bị, mã hóa mật khẩu / PIN, session revocation, RBAC permissions và Table commands.
 
-- 9 Store Durable Object tests.
-- 9 Device context/activation tests.
-- 4 Device authorization parser tests.
-- 3 System diagnostics auth tests.
-- 1 Cross-Store installation test.
-- 3 Command trust-boundary tests.
+---
 
-Từ root, gate đầy đủ:
+## 6. Tài liệu liên quan
 
-```bash
-pnpm run ci
-```
-
-## D1 Control Plane
-
-Database:
-
-```text
-billiards-control-plane
-```
-
-Binding:
-
-```text
-DB
-```
-
-Migrations hiện tại:
-
-```text
-0001_init_control_plane.sql
-0002_add_device_credentials.sql
-0003_enforce_global_device_installation.sql
-```
-
-`0003` bảo đảm một `installationId` chỉ thuộc tối đa một Store tại một thời điểm. Re-activation cùng Store được phép rotate credential; activation sang Store khác trả conflict và không tự chuyển tenant.
-
-Apply local migrations:
-
-```bash
-pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane --local
-```
-
-Inspect local migrations:
-
-```bash
-pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "SELECT * FROM d1_migrations ORDER BY id;"
-```
-
-Validate foreign keys:
-
-```bash
-pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
-```
-
-Không chạy migration `--remote` để thử nghiệm. Review schema, secrets và deployment boundary trước khi apply remote.
-
-## Endpoint hiện tại
-
-### Public/basic
-
-- `GET /`
-- `GET /api/health`
-
-### Device
-
-- `POST /api/devices/activate`
-  - nhận one-time activation token,
-  - tạo/reactivate device,
-  - raw secret chỉ trả về một lần,
-  - D1 chỉ lưu hash,
-  - invalid token → 401,
-  - expected constraint conflict → 409,
-  - unexpected backend/invariant failure → 503.
-
-### POS Device context
-
-- `GET /api/pos/context`
-  - yêu cầu Device credential,
-  - trả trusted Device + Store context.
-
-### Protected system diagnostics
-
-- `GET /api/system/db-health`
-- `GET /api/system/stores/:storeId/do-health`
-
-Các endpoint `/api/system/*` yêu cầu Bearer token riêng. Nếu diagnostics token chưa được cấu hình hợp lệ, route trả 404 fail-closed.
-
-## Command trust boundary
-
-Client command intent chỉ gồm:
-
-```text
-commandId
-issuedAt
-commandType
-payload
-```
-
-Store/Device/Actor identity được Worker enrich sau khi authentication thành công. `issuedAt` là client intent timestamp, không phải authoritative clock cho session/pricing/payment/audit execution time.
-
-Chi tiết: `../../docs/ADR-002-command-trust-boundary.md`.
-
-## Store Durable Object
-
-```text
-trusted storeId
-      ↓
-STORE_DO.idFromName(storeId)
-      ↓
-StoreDurableObject
-      ↓
-SQLite operational DB
-```
-
-Foundation Store DO đã có:
-
-- persisted Store identity,
-- identity mismatch guard,
-- schema versioning/migration runner,
-- transaction/read-write tests,
-- Store isolation tests.
-
-Migration runner hiện kiểm tra migration sequence, reject future schema version và chạy từng migration trong `transactionSync`. Business tables như table/session/product/bill/payment sẽ được thêm theo vertical slice, không tạo trước toàn bộ schema.
-
-## Bước tiếp theo
-
-```text
-Device + trusted Store ✅
-      ↓
-Employee + PIN/AuthGate
-      ↓
-Permission context
-      ↓
-TableType + BilliardTable
-      ↓
-POS business commands
-```
-
-Employee/Auth request sau này vẫn phải đi qua Device context hợp lệ; session token không được bypass revoked Device hoặc inactive Store.
+- [`../../docs/02-tongquan/ARCHITECTURE.md`](../../docs/02-tongquan/ARCHITECTURE.md)
+- [`../../docs/03-database/D1_CONTROL_PLANE.md`](../../docs/03-database/D1_CONTROL_PLANE.md)
+- [`../../docs/03-database/STORE_DURABLE_OBJECT_SQLITE.md`](../../docs/03-database/STORE_DURABLE_OBJECT_SQLITE.md)
+- [`../../docs/04-api/API_REFERENCE.md`](../../docs/04-api/API_REFERENCE.md)
+- [`../../docs/04-api/PERMISSIONS_CATALOG.md`](../../docs/04-api/PERMISSIONS_CATALOG.md)
