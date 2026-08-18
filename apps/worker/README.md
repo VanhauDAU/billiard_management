@@ -24,6 +24,7 @@ Desktop Main
       ▼
 Worker
       │
+      ├── parse/validate Device credential
       ├── lookup D1 devices + stores
       ├── verify credential hash
       ├── reject revoked/inactive state
@@ -76,10 +77,11 @@ pnpm --dir apps/worker run typecheck:test
 pnpm --dir apps/worker test
 ```
 
-Hiện có 18 Worker tests:
+Hiện có 22 Worker tests:
 
 - 9 Store Durable Object tests.
 - 9 Device context/activation tests.
+- 4 Device authorization parser tests.
 
 Từ root, gate đầy đủ:
 
