@@ -8,13 +8,34 @@ type MetadataRow = {
 export class StoreDurableObject extends DurableObject {
   private readonly sql: SqlStorage
 
-  constructor(ctx: DurableObjectState, env: CloudflareBindings) {
-    super(ctx, env)
+  constructor(
+    ctx:
+      DurableObjectState,
 
-    this.sql = ctx.storage.sql
-    
-    migrateStoreSchema(ctx.storage)
+    env:
+      CloudflareBindings
+  ) {
+    super(
+      ctx,
+      env
+    )
 
+    this.sql =
+      ctx.storage.sql
+
+
+    /*
+    * Schema migration must complete before
+    * this Durable Object accepts requests
+    * or future RPC calls.
+    */
+    ctx.blockConcurrencyWhile(
+      async () => {
+        migrateStoreSchema(
+          ctx.storage
+        )
+      }
+    )
   }
 
   private ensureStoreIdentity(storeId: string): void {
