@@ -7,6 +7,9 @@ import { registerBackendIpc } from './ipc/backend-ipc'
 import { isAllowedExternalUrl, isTrustedRendererUrl } from './security/trusted-url'
 import { registerDeviceIpc } from './ipc/device-ipc'
 import { registerAuthIpc } from './ipc/auth-ipc'
+import {
+  registerTableIpc
+} from './ipc/table-ipc'
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -77,6 +80,7 @@ app.whenReady().then(() => {
   registerBackendIpc()
   registerDeviceIpc()
   registerAuthIpc()
+  registerTableIpc()
 
   createWindow()
 
