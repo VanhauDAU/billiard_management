@@ -44,6 +44,7 @@ app.getPath('userData')/
 - `credential.bin`: encrypted device ID + secret bằng Electron async `safeStorage`.
 - File credential hỏng dẫn tới reactivation, không tự xóa/replace trước khi activation mới thành công.
 - Installation identity hỏng fail-closed; app không tự sinh identity mới để tránh tạo device mồ côi.
+- Secure storage unavailable dẫn tới `local_error`; app không consume activation token trong trạng thái này.
 
 ## DeviceGate
 
@@ -122,12 +123,19 @@ pnpm --filter @billiards/desktop build:mac
 pnpm --filter @billiards/desktop build:linux
 ```
 
-Packaging/release chưa phải production-ready gate. Trước pilot cần review:
+Packaging identity hiện đã chuẩn hóa:
 
-- `electron-builder.yml` identifiers/artifact metadata,
+```text
+appId:       com.billiards.pos
+productName: Billiards POS
+Windows exe: billiards-pos
+```
+
+URL auto-update scaffold `example.com` đã bị loại bỏ. Packaging/release vẫn chưa phải production-ready gate. Trước pilot cần hoàn tất:
+
 - code signing/notarization,
-- Windows installer/update channel,
-- production backend URL,
+- Windows installer/update channel thật,
+- production backend HTTPS URL,
 - packaged activation + restart smoke test,
 - update không phá local operational data.
 
