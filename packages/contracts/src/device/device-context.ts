@@ -21,9 +21,9 @@ export type DevicePlatform =
 
 export const DeviceContextSchema = z.object({
   device: z.object({
-    id: z.string().min(1),
+    id: z.string().uuid(),
     name: z.string().min(1),
-    installationId: z.string().min(1),
+    installationId: z.string().uuid(),
     type: DeviceTypeSchema,
     platform: DevicePlatformSchema,
     appVersion: z.string().nullable()

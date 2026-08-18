@@ -59,7 +59,9 @@ function isValidCredential(
     typeof candidate.deviceId ===
       'string' &&
 
-    candidate.deviceId.length > 0 &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      candidate.deviceId
+    ) &&
 
     typeof candidate.deviceSecret ===
       'string' &&
@@ -81,9 +83,45 @@ async function requireEncryption(): Promise<void> {
     )
   }
 }
+
+async function decryptCredential(
+  encrypted: Buffer
+): Promise<{
+  result: string
+  shouldReEncrypt: boolean
+}> {
+  try {
+    const initial =
+      await safeStorage
+        .decryptStringAsync(
+          encrypted
+        )
+
+    if (!initial.shouldReEncrypt) {
+      return initial
+    }
+
+    const refreshed =
+      await safeStorage
+        .decryptStringAsync(
+          encrypted
+        )
+
+    return {
+      result: refreshed.result,
+      shouldReEncrypt: true
+    }
+  } catch {
+    throw new Error(
+      'invalid_device_credential_file'
+    )
+  }
+}
+
 export async function assertDeviceCredentialStorageAvailable(): Promise<void> {
   await requireEncryption()
 }
+
 export async function saveDeviceCredential(
   credential: Omit<
     StoredDeviceCredential,
@@ -169,10 +207,9 @@ export async function loadDeviceCredential(): Promise<
   await requireEncryption()
 
   const decrypted =
-    await safeStorage
-      .decryptStringAsync(
-        encrypted
-      )
+    await decryptCredential(
+      encrypted
+    )
 
   let parsed: unknown
 

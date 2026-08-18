@@ -20,7 +20,9 @@ export type DesktopDeviceState =
   | {
       status: 'needs_reactivation'
       installationId: string
-      reason: 'invalid_device_credential'
+      reason:
+        | 'invalid_device_credential'
+        | 'invalid_local_credential'
     }
   | {
       status: 'blocked'
@@ -34,4 +36,10 @@ export type DesktopDeviceState =
       status: 'unavailable'
       installationId: string
       reason: 'backend_unavailable'
+    }
+  | {
+      status: 'local_error'
+      reason:
+        | 'invalid_installation_identity'
+        | 'secure_storage_unavailable'
     }

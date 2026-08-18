@@ -107,6 +107,29 @@ export function DeviceGate(): React.JSX.Element {
 
   if (
     state.status ===
+    'local_error'
+  ) {
+    const message =
+      state.reason ===
+      'invalid_installation_identity'
+        ? 'Dữ liệu định danh cài đặt trên máy này bị hỏng. Hệ thống không tự tạo Installation ID mới để tránh tạo thiết bị mồ côi. Vui lòng xử lý dữ liệu thiết bị theo quy trình quản trị trước khi tiếp tục.'
+        : 'Kho lưu trữ bảo mật của hệ điều hành hiện không khả dụng. POS sẽ không kích hoạt hoặc sử dụng credential cho đến khi secure storage hoạt động trở lại.'
+
+    return (
+      <StatusCard
+        eyebrow="Lỗi thiết bị cục bộ"
+        title="Không thể sử dụng POS"
+        description={message}
+        buttonLabel="Kiểm tra lại"
+        onButtonClick={() =>
+          void loadState()
+        }
+      />
+    )
+  }
+
+  if (
+    state.status ===
     'unavailable'
   ) {
     return (

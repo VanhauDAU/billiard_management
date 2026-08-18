@@ -67,13 +67,27 @@ deviceRoutes.post(
         )
       }
 
+      if (
+        result.error ===
+        'device_activation_conflict'
+      ) {
+        return c.json(
+          {
+            ok: false,
+            error:
+              'device_activation_conflict'
+          },
+          409
+        )
+      }
+
       return c.json(
         {
           ok: false,
           error:
-            'device_activation_conflict'
+            'device_activation_unavailable'
         },
-        409
+        503
       )
     }
 

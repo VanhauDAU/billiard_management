@@ -1,3 +1,5 @@
+import { app } from 'electron'
+
 import {
   ActivateDeviceResponseSchema,
   ApiHealthResponseSchema,
@@ -12,6 +14,13 @@ import type {
 } from '@billiards/contracts'
 
 const DEFAULT_TIMEOUT_MS = 5000
+
+const LOOPBACK_HOSTS = new Set([
+  'localhost',
+  '127.0.0.1',
+  '::1',
+  '[::1]'
+])
 
 export interface DeviceCredential {
   deviceId: string
@@ -39,7 +48,51 @@ function getApiBaseUrl(): string {
     )
   }
 
-  return baseUrl.replace(/\/$/, '')
+  let url: URL
+
+  try {
+    url = new URL(baseUrl)
+  } catch {
+    throw new Error(
+      'MAIN_VITE_API_BASE_URL is invalid'
+    )
+  }
+
+  if (
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      'MAIN_VITE_API_BASE_URL contains unsupported URL components'
+    )
+  }
+
+  if (app.isPackaged) {
+    if (url.protocol !== 'https:') {
+      throw new Error(
+        'MAIN_VITE_API_BASE_URL must use HTTPS in packaged builds'
+      )
+    }
+  } else {
+    const isSecure =
+      url.protocol === 'https:'
+
+    const isLocalHttp =
+      url.protocol === 'http:' &&
+      LOOPBACK_HOSTS.has(url.hostname)
+
+    if (!isSecure && !isLocalHttp) {
+      throw new Error(
+        'Development HTTP backend must use a loopback host'
+      )
+    }
+  }
+
+  return url
+    .toString()
+    .replace(/\/$/, '')
 }
 
 async function requestJson(

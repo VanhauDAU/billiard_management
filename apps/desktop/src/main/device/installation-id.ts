@@ -37,6 +37,51 @@ function isUuid(value: unknown): value is string {
   )
 }
 
+function parseInstallationFile(
+  content: string
+): InstallationFile {
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    throw new Error(
+      'invalid_installation_identity_file'
+    )
+  }
+
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null
+  ) {
+    throw new Error(
+      'invalid_installation_identity_file'
+    )
+  }
+
+  const candidate =
+    parsed as Partial<InstallationFile>
+
+  if (
+    candidate.version !==
+      INSTALLATION_FILE_VERSION ||
+    !isUuid(
+      candidate.installationId
+    )
+  ) {
+    throw new Error(
+      'invalid_installation_identity_file'
+    )
+  }
+
+  return {
+    version:
+      INSTALLATION_FILE_VERSION,
+    installationId:
+      candidate.installationId
+  }
+}
+
 async function writeInstallationFile(
   value: InstallationFile
 ): Promise<void> {
@@ -86,22 +131,9 @@ export async function getOrCreateInstallationId(): Promise<string> {
         'utf8'
       )
 
-    const parsed =
-      JSON.parse(content) as Partial<InstallationFile>
-
-    if (
-      parsed.version !==
-        INSTALLATION_FILE_VERSION ||
-      !isUuid(
-        parsed.installationId
-      )
-    ) {
-      throw new Error(
-        'invalid_installation_identity_file'
-      )
-    }
-
-    return parsed.installationId
+    return parseInstallationFile(
+      content
+    ).installationId
   } catch (error) {
     const code =
       (

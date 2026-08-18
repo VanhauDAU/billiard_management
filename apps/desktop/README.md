@@ -1,34 +1,144 @@
-# apps-desktop
+# Billiards POS Desktop
 
-An Electron application with React and TypeScript
+Electron + React + TypeScript desktop client cho hệ thống quản lý cửa hàng billiards.
 
-## Recommended IDE Setup
+## Security boundary
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-## Project Setup
-
-### Install
-
-```bash
-$ pnpm install
+```text
+Renderer
+   │ window.desktopApi
+   ▼
+Preload
+   │ narrow typed IPC
+   ▼
+Main Process
+   ├── backend HTTP
+   ├── installation identity
+   ├── encrypted device credential
+   ├── future printing/local DB/sync
+   └── updater
 ```
 
-### Development
+Nguyên tắc hiện tại:
 
-```bash
-$ pnpm dev
+- `contextIsolation: true`.
+- `nodeIntegration: false`.
+- renderer sandbox bật.
+- Renderer không nhận `deviceSecret`.
+- Privileged IPC chỉ chấp nhận top-level trusted renderer.
+- Packaged app chỉ kết nối backend qua HTTPS.
+- HTTP backend chỉ được phép với loopback trong development.
+
+## Device identity
+
+Local app data:
+
+```text
+app.getPath('userData')/
+└── device/
+    ├── installation.json
+    └── credential.bin
 ```
 
-### Build
+- `installation.json`: UUID ổn định cho installation, không phải secret.
+- `credential.bin`: encrypted device ID + secret bằng Electron async `safeStorage`.
+- File credential hỏng dẫn tới reactivation, không tự xóa/replace trước khi activation mới thành công.
+- Installation identity hỏng fail-closed; app không tự sinh identity mới để tránh tạo device mồ côi.
+- Secure storage unavailable dẫn tới `local_error`; app không consume activation token trong trạng thái này.
+
+## DeviceGate
+
+Renderer hiện có startup states:
+
+- `not_activated`
+- `needs_reactivation`
+- `ready`
+- `blocked`
+- `unavailable`
+- `local_error`
+
+Activation UI chỉ gửi `activationToken + name` qua IPC. Installation ID, platform, app version và raw credential do Main/Worker quản lý.
+
+## Environment
+
+Copy hoặc tạo env phù hợp từ:
+
+```text
+apps/desktop/.env.example
+```
+
+Development mặc định:
+
+```env
+MAIN_VITE_API_BASE_URL=http://localhost:8787
+```
+
+Packaged build phải dùng HTTPS backend.
+
+## Development
+
+Từ repository root:
 
 ```bash
-# For windows
-$ pnpm build:win
-
-# For macOS
-$ pnpm build:mac
-
-# For Linux
-$ pnpm build:linux
+pnpm dev:desktop
 ```
+
+Hoặc trong `apps/desktop`:
+
+```bash
+pnpm dev
+```
+
+Electron 43 dùng lazy binary download. Script `dev/start` chạy `install-electron --no` trước khi mở Electron để fresh clone không gặp lỗi thiếu binary.
+
+Worker phải chạy riêng:
+
+```bash
+pnpm dev:worker
+```
+
+## Typecheck / build
+
+Từ root:
+
+```bash
+pnpm typecheck:desktop
+pnpm build:desktop
+```
+
+Gate đầy đủ:
+
+```bash
+pnpm run ci
+```
+
+## Packaging
+
+Scripts hiện có:
+
+```bash
+pnpm --filter @billiards/desktop build:unpack
+pnpm --filter @billiards/desktop build:win
+pnpm --filter @billiards/desktop build:mac
+pnpm --filter @billiards/desktop build:linux
+```
+
+Packaging identity hiện đã chuẩn hóa:
+
+```text
+appId:       com.billiards.pos
+productName: Billiards POS
+Windows exe: billiards-pos
+```
+
+URL auto-update scaffold `example.com` đã bị loại bỏ. Packaging/release vẫn chưa phải production-ready gate. Trước pilot cần hoàn tất:
+
+- code signing/notarization,
+- Windows installer/update channel thật,
+- production backend HTTPS URL,
+- packaged activation + restart smoke test,
+- update không phá local operational data.
+
+## Bước tiếp theo
+
+Sau DeviceGate, Desktop sẽ thêm Employee PIN AuthGate nhưng tiếp tục giữ session credential ở Main Process, không đẩy security token trực tiếp vào Renderer.

@@ -42,6 +42,16 @@ function getDesktopPlatform():
   }
 }
 
+function hasErrorMessage(
+  error: unknown,
+  message: string
+): boolean {
+  return (
+    error instanceof Error &&
+    error.message === message
+  )
+}
+
 function isBlockedError(
   error: BackendApiError
 ): error is BackendApiError & {
@@ -125,11 +135,71 @@ async function resolveCredentialState(
 }
 
 export async function getDesktopDeviceState(): Promise<DesktopDeviceState> {
-  const installationId =
-    await getOrCreateInstallationId()
+  let installationId: string
 
-  const credential =
-    await loadDeviceCredential()
+  try {
+    installationId =
+      await getOrCreateInstallationId()
+  } catch (error) {
+    if (
+      hasErrorMessage(
+        error,
+        'invalid_installation_identity_file'
+      )
+    ) {
+      return {
+        status: 'local_error',
+        reason:
+          'invalid_installation_identity'
+      }
+    }
+
+    throw error
+  }
+
+  let credential:
+    | Awaited<
+        ReturnType<
+          typeof loadDeviceCredential
+        >
+      >
+
+  try {
+    credential =
+      await loadDeviceCredential()
+  } catch (error) {
+    if (
+      hasErrorMessage(
+        error,
+        'secure_storage_unavailable'
+      )
+    ) {
+      return {
+        status: 'local_error',
+        reason:
+          'secure_storage_unavailable'
+      }
+    }
+
+    if (
+      hasErrorMessage(
+        error,
+        'invalid_device_credential_file'
+      )
+    ) {
+      return {
+        status:
+          'needs_reactivation',
+
+        installationId,
+
+        reason:
+          'invalid_local_credential'
+      }
+    }
+
+    throw error
+  }
 
   if (!credential) {
     return {
@@ -191,7 +261,9 @@ export async function activateDesktopDevice(
       appVersion:
         app.getVersion()
     }
+
   await assertDeviceCredentialStorageAvailable()
+
   const activation =
     await activateDevice(
       request
@@ -207,7 +279,6 @@ export async function activateDesktopDevice(
 
   /*
    * Activation token đã bị consume ở server.
-   *
    * Vì vậy phải lưu credential ngay sau
    * response 201 để không làm mất secret.
    */

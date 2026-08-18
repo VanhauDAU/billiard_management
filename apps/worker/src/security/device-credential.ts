@@ -1,5 +1,7 @@
 const SECRET_BYTES = 32
-const DEVICE_SCHEME = 'Device'
+const DEVICE_SCHEME = 'device'
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -61,34 +63,48 @@ export function parseDeviceAuthorization(
     return null
   }
 
-  const prefix = `${DEVICE_SCHEME} `
+  const separatorIndex =
+    authorization.indexOf(' ')
 
-  if (!authorization.startsWith(prefix)) {
+  if (separatorIndex <= 0) {
+    return null
+  }
+
+  const scheme = authorization
+    .slice(0, separatorIndex)
+    .toLowerCase()
+
+  if (scheme !== DEVICE_SCHEME) {
     return null
   }
 
   const value = authorization
-    .slice(prefix.length)
+    .slice(separatorIndex + 1)
     .trim()
 
-  const separatorIndex =
+  const credentialSeparator =
     value.indexOf('.')
 
   if (
-    separatorIndex <= 0 ||
-    separatorIndex !==
+    credentialSeparator <= 0 ||
+    credentialSeparator !==
       value.lastIndexOf('.')
   ) {
     return null
   }
 
   const deviceId =
-    value.slice(0, separatorIndex)
+    value.slice(
+      0,
+      credentialSeparator
+    )
 
   const secret =
-    value.slice(separatorIndex + 1)
+    value.slice(
+      credentialSeparator + 1
+    )
 
-  if (!deviceId) {
+  if (!UUID_PATTERN.test(deviceId)) {
     return null
   }
 

@@ -13,36 +13,28 @@ import {
 type DeviceAuthRow = {
   device_id: string
   store_id: string
-
   installation_id: string
   device_name: string
   device_type:
     | 'desktop_pos'
     | 'mobile_pwa'
-
   platform:
     | 'windows'
     | 'macos'
     | 'ios'
     | 'android'
     | 'web'
-
   app_version: string | null
-
   device_status:
     | 'pending'
     | 'active'
     | 'revoked'
-
   credential_hash: string | null
-
   store_name: string
-
   store_status:
     | 'active'
     | 'suspended'
     | 'closed'
-
   timezone: string
   locale: string
   currency: string
@@ -143,7 +135,6 @@ export async function authenticateDevice(
 
   return {
     ok: true,
-
     context: {
       device: {
         id: row.device_id,
@@ -154,7 +145,6 @@ export async function authenticateDevice(
         platform: row.platform,
         appVersion: row.app_version
       },
-
       store: {
         id: row.store_id,
         name: row.store_name,
@@ -176,7 +166,20 @@ export type ActivateDeviceResult =
       error:
         | 'invalid_activation_token'
         | 'device_activation_conflict'
+        | 'device_activation_unavailable'
     }
+
+function isConstraintError(
+  error: unknown
+): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes(
+      'SQLITE_CONSTRAINT'
+    )
+  )
+}
+
 export async function activateDevice(
   db: D1Database,
   input: ActivateDeviceRequest
@@ -207,11 +210,9 @@ export async function activateDevice(
           platform,
           status,
           app_version,
-
           credential_hash,
           credential_created_at,
           credential_version,
-
           registered_at,
           created_at,
           updated_at
@@ -226,11 +227,9 @@ export async function activateDevice(
           ?5,
           'active',
           ?6,
-
           ?7,
           CURRENT_TIMESTAMP,
           1,
-
           CURRENT_TIMESTAMP,
           CURRENT_TIMESTAMP,
           CURRENT_TIMESTAMP
@@ -251,19 +250,14 @@ export async function activateDevice(
           name = excluded.name,
           device_type = excluded.device_type,
           platform = excluded.platform,
-
           status = 'active',
           app_version = excluded.app_version,
-
           credential_hash =
             excluded.credential_hash,
-
           credential_created_at =
             CURRENT_TIMESTAMP,
-
           credential_version =
             devices.credential_version + 1,
-
           revoked_at = NULL,
           updated_at = CURRENT_TIMESTAMP
       `).bind(
@@ -283,7 +277,6 @@ export async function activateDevice(
         SET
           status = 'used',
           used_at = CURRENT_TIMESTAMP,
-
           used_device_id = (
             SELECT devices.id
 
@@ -292,7 +285,6 @@ export async function activateDevice(
             WHERE
               devices.store_id =
                 device_activation_tokens.store_id
-
               AND devices.installation_id = ?1
 
             LIMIT 1
@@ -302,7 +294,6 @@ export async function activateDevice(
           token_hash = ?2
           AND status = 'active'
           AND expires_at > CURRENT_TIMESTAMP
-
           AND EXISTS (
             SELECT 1
 
@@ -311,7 +302,6 @@ export async function activateDevice(
             WHERE
               stores.id =
                 device_activation_tokens.store_id
-
               AND stores.status = 'active'
           )
       `).bind(
@@ -320,88 +310,107 @@ export async function activateDevice(
       )
     ])
 
-    const insertResult =
-        results[0]
+    const insertResult = results[0]
+    const consumeResult = results[1]
 
-      if (
-        !insertResult.success ||
-        insertResult.meta.changes !== 1
-      ) {
-        return {
-          ok: false,
-          error:
-            'invalid_activation_token'
-        }
-      }
-
-      const device =
-        await db
-          .prepare(`
-            SELECT
-              devices.id,
-              devices.store_id,
-              devices.device_type,
-              devices.platform
-
-            FROM devices
-
-            INNER JOIN device_activation_tokens token
-              ON token.store_id =
-                devices.store_id
-
-            WHERE
-              token.token_hash = ?1
-
-              AND devices.installation_id = ?2
-
-            LIMIT 1
-          `)
-          .bind(
-            activationHash,
-            input.installationId
-          )
-          .first<{
-            id: string
-
-            store_id: string
-
-            device_type:
-              | 'desktop_pos'
-              | 'mobile_pwa'
-
-            platform:
-              | 'windows'
-              | 'macos'
-              | 'ios'
-              | 'android'
-              | 'web'
-          }>()
-
-      if (!device) {
-        throw new Error(
-          'activated_device_not_found'
-        )
-      }
+    if (!insertResult.success) {
+      console.error(
+        'Device activation insert failed without throwing'
+      )
 
       return {
-        ok: true,
-
-        value: {
-          deviceId:
-            device.id,
-
-          deviceSecret,
-
-          storeId:
-            device.store_id,
-
-          deviceType:
-            device.device_type,
-
-          platform:
-            device.platform
-        }
+        ok: false,
+        error:
+          'device_activation_unavailable'
       }
+    }
+
+    if (
+      insertResult.meta.changes !== 1
+    ) {
+      return {
+        ok: false,
+        error:
+          'invalid_activation_token'
+      }
+    }
+
+    if (
+      !consumeResult.success ||
+      consumeResult.meta.changes !== 1
+    ) {
+      console.error(
+        'Device activation token consume invariant failed'
+      )
+
+      return {
+        ok: false,
+        error:
+          'device_activation_unavailable'
+      }
+    }
+
+    const device = await db
+      .prepare(`
+        SELECT
+          devices.id,
+          devices.store_id,
+          devices.device_type,
+          devices.platform
+
+        FROM devices
+
+        INNER JOIN device_activation_tokens token
+          ON token.store_id =
+            devices.store_id
+
+        WHERE
+          token.token_hash = ?1
+          AND devices.installation_id = ?2
+
+        LIMIT 1
+      `)
+      .bind(
+        activationHash,
+        input.installationId
+      )
+      .first<{
+        id: string
+        store_id: string
+        device_type:
+          | 'desktop_pos'
+          | 'mobile_pwa'
+        platform:
+          | 'windows'
+          | 'macos'
+          | 'ios'
+          | 'android'
+          | 'web'
+      }>()
+
+    if (!device) {
+      console.error(
+        'Activated device lookup invariant failed'
+      )
+
+      return {
+        ok: false,
+        error:
+          'device_activation_unavailable'
+      }
+    }
+
+    return {
+      ok: true,
+      value: {
+        deviceId: device.id,
+        deviceSecret,
+        storeId: device.store_id,
+        deviceType:
+          device.device_type,
+        platform: device.platform
+      }
+    }
   } catch (error) {
     console.error(
       'Device activation failed:',
@@ -410,7 +419,9 @@ export async function activateDevice(
 
     return {
       ok: false,
-      error: 'device_activation_conflict'
+      error: isConstraintError(error)
+        ? 'device_activation_conflict'
+        : 'device_activation_unavailable'
     }
   }
 }

@@ -2,38 +2,39 @@
 
 Cập nhật: **2026-08-18**
 
-> V1 không có mô hình `branch`. Một `Store` là một cửa hàng billiards tại một địa điểm vật lý và đồng thời là tenant/data-isolation boundary của hệ thống.
+> V1 không có mô hình `branch`. Một `Store` là một cửa hàng billiards tại một địa điểm vật lý và đồng thời là tenant/data-isolation boundary.
 
-Scope nghiệp vụ đã khóa tại [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md). Quyết định single-store được ghi tại [`ADR-001-single-store-no-branch.md`](ADR-001-single-store-no-branch.md).
+Scope nghiệp vụ: [`SYSTEM_SCOPE_V1.md`](SYSTEM_SCOPE_V1.md).
 
-## 1. Trạng thái kiến trúc hiện tại
+Quyết định kiến trúc:
 
-**M0 - Foundation đã hoàn thành.** Foundation hiện có:
+- [`ADR-001-single-store-no-branch.md`](ADR-001-single-store-no-branch.md)
+- [`ADR-002-command-trust-boundary.md`](ADR-002-command-trust-boundary.md)
+- [`ADR-003-device-installation-single-store.md`](ADR-003-device-installation-single-store.md)
 
-- Electron desktop security/process boundary.
+## 1. Trạng thái hiện tại
+
+**M0 - Foundation** và **M1.1 - Device identity + Store execution context** đã hoàn thành theo local/functional gate và đã qua post-merge trust-boundary audit.
+
+Hiện có:
+
+- Electron Desktop main/preload/renderer boundary.
 - Hono Worker gateway/API.
 - D1 Store-based control plane.
-- `STORE_DO` + SQLite-backed `StoreDurableObject`.
-- Store identity guard.
-- Store DO schema migration/versioning runner.
-- Automated Store DO SQLite tests.
-- Shared API/command contracts.
-- GitHub Actions CI quality gate.
+- `STORE_DO` + SQLite-backed `StoreDurableObject`, một DO / Store.
+- Store identity guard + Store DO migration/version runner.
+- one-time Device activation + hashed Device credential.
+- một `installationId` chỉ thuộc tối đa một Store tại một thời điểm.
+- trusted Store context resolve server-side từ Device.
+- protected `/api/system/*` diagnostics bằng secret riêng.
+- client command envelope không được tự khai Store/Device/Actor identity authority.
+- Electron installation identity + encrypted Device credential ở Main Process.
+- DeviceGate ở Renderer nhưng không expose raw secret.
+- **29 Worker tests** và root CI.
 
-Dự án bắt đầu **M1 - Windows POS online**, trước tiên là Device identity + Store execution context.
+Bước nghiệp vụ tiếp theo: **M1.2 - Employee + PIN/AuthGate**.
 
-## 2. Mục tiêu
-
-Hệ thống phải đáp ứng:
-
-- POS desktop chạy ổn định tại cửa hàng, ưu tiên Windows khi triển khai.
-- Mobile PWA có thể thao tác đầy đủ như POS ở milestone sau.
-- Backend cloud để xác thực, quản lý Store/user/device và đồng bộ.
-- Operational state có single-writer boundary rõ ràng.
-- Có đường tiến hóa tới offline-first mà không viết lại command semantics.
-- Có printing 80mm và remote desktop update ở các milestone sau.
-
-## 3. Sơ đồ tổng thể
+## 2. Sơ đồ tổng thể
 
 ```text
 ┌─────────────────────────┐          ┌─────────────────────────┐
@@ -57,64 +58,83 @@ Hệ thống phải đáp ứng:
        └────────────────────┘       └───────────┬────────────┘
                                                │
                                                ▼
-                                  tables / pricing / sessions
-                                  products / bills / payments
-                                  commands / events / print refs
+                                  table/session/product/bill/
+                                  payment/command/event/print
 ```
 
-Không còn trong architecture V1:
+V1 không chứa `branches`, `branch_id`, `BRANCH_DO`, `BranchDurableObject` hoặc UI chọn/chuyển branch.
 
-- `branches`,
-- `branch_id`,
-- `branch_registry`,
-- `BRANCH_DO`,
-- `BranchDurableObject`,
-- chọn/chuyển branch trong UI.
-
-## 4. Store là tenant boundary
+## 3. Store là tenant boundary
 
 Một Store = một cửa hàng vật lý.
 
-Trong UI/domain dùng từ `Store` / `Cửa hàng`. Có thể xem Store là tenant kỹ thuật, nhưng không cần expose khái niệm tenant cho người dùng cuối.
+Guardrail:
 
-Dữ liệu của Store A không được đọc/ghi nhầm sang Store B.
+- dữ liệu Store A không được đọc/ghi sang Store B,
+- client-supplied `storeId` không phải security authority,
+- mọi Store-scoped entity từ payload phải được kiểm tra thuộc trusted Store trước mutation,
+- nếu sau này hỗ trợ chuỗi nhiều địa điểm, đó là capability mới chứ không phải branch ẩn trong V1.
 
-Nếu sau này hỗ trợ chuỗi nhiều địa điểm, đó là capability mới. Không giữ branch trong V1 chỉ để dự phòng.
-
-## 5. Desktop process boundary
+## 4. Desktop process boundary
 
 ```text
 Renderer (React)
-      │
       │ window.desktopApi
       ▼
 Preload
-      │
-      │ typed IPC
+      │ narrow typed IPC
       ▼
 Main Process
-      │
-      ├── HTTP/backend client
-      ├── future local SQLite
+      ├── backend HTTP
+      ├── installation identity
+      ├── encrypted credential
+      ├── future local SQLite/sync
       ├── printing
-      ├── sync/outbox
-      ├── updater
-      └── secure storage
+      └── updater
 ```
 
-Nguyên tắc:
+Security rules:
 
-- Renderer không có Node integration.
-- Renderer không expose `ipcRenderer` trực tiếp.
-- Preload chỉ expose API hẹp, typed.
-- Main process quản lý network orchestration, local storage, printing và updater.
-- Navigation/open-external được kiểm soát ở main process.
+- `contextIsolation: true`, `nodeIntegration: false`, renderer sandbox bật.
+- Renderer không nhận `deviceSecret` hoặc security token trực tiếp.
+- Privileged IPC chỉ chấp nhận top-level trusted renderer frame.
+- Development renderer trust theo Vite origin.
+- Packaged renderer trust đúng packaged `renderer/index.html`, không phải mọi `file:` URL.
+- Chromium permissions deny-by-default; chỉ mở capability khi có feature thật.
+- DevTools chỉ bật ở development.
+- External navigation deny-by-default; chỉ origin được allowlist rõ ràng mới được mở.
+- Packaged Desktop chỉ kết nối backend qua HTTPS; HTTP development chỉ cho loopback.
 
-## 6. D1 Control Plane - model hiện tại
+### Local Device files
 
-Migration `apps/worker/migrations/0001_init_control_plane.sql` hiện đã là Store-based schema.
+```text
+app.getPath('userData')/
+└── device/
+    ├── installation.json
+    └── credential.bin
+```
 
-Các bảng foundation:
+- `installation.json`: UUID ổn định, không phải secret.
+- `credential.bin`: encrypted `deviceId + deviceSecret` bằng async `safeStorage`.
+- credential hỏng → controlled reactivation.
+- secure storage unavailable → fail-closed `local_error`.
+- installation identity malformed → fail-closed; không tự sinh UUID mới để tránh stale/orphan Device.
+
+Electron 43 dùng lazy binary download; `dev/start` chạy `install-electron --no` trước khi mở app.
+
+Packaging identity hiện là `com.billiards.pos` / `Billiards POS`; signing/notarization/update channel thật vẫn là release gate.
+
+## 5. D1 Control Plane
+
+Migrations hiện tại:
+
+```text
+0001_init_control_plane.sql
+0002_add_device_credentials.sql
+0003_enforce_global_device_installation.sql
+```
+
+Các bảng control-plane chính:
 
 ```text
 stores
@@ -124,137 +144,143 @@ permission_catalog
 role_permissions
 store_memberships
 devices
+device_activation_tokens
 auth_sessions
 store_registry
 ```
 
-### `stores`
+### Device invariant
 
-Metadata của cửa hàng gồm các trường foundation như:
+`0003` tạo global unique index trên `devices.installation_id`.
 
-- tên,
-- slug,
-- trạng thái,
-- địa chỉ,
-- số điện thoại,
-- timezone,
-- locale,
-- currency.
+V1 behavior:
 
-### User / membership / permission
+- same Store + same installation → reactivation hợp lệ, giữ Device row và rotate credential,
+- different Store + same installation → conflict,
+- original Store/device không bị chuyển hoặc revoke ngầm,
+- chuyển Store sau này phải là privileged transfer/recovery flow.
 
-Các role mặc định có thể gồm Owner/Manager/Cashier/Staff nhưng permission model không hard-code theo bốn tên này.
+### Activation token
 
-`permission_catalog` là capability allowlist do hệ thống quản lý. Owner có thể gán các capability hợp lệ cho role, không tự phát minh security permission key tùy ý.
+`device_activation_tokens` chỉ lưu token hash, Store, status, expiry và used-device metadata. Raw token không persist.
 
-Một user có một membership/role trong Store ở V1. Permission được kiểm tra server-side; UI chỉ ẩn/disable để hỗ trợ trải nghiệm, không phải security boundary duy nhất.
+Consume/verification flow đã có; issuance/admin UI chưa có.
 
-### Device
+### Auth session foundation
 
-Mỗi thiết bị thuộc một Store.
-
-`devices` lưu installation identity, loại thiết bị, platform, trạng thái, app version và last-seen metadata phù hợp.
-
-Desktop và Mobile đều là client của Store; Mobile không phải branch riêng.
-
-### Auth session
-
-Session foundation gắn với:
+`auth_sessions` gắn:
 
 ```text
-store + user + membership + device
+Store + User + Membership + Device
 ```
 
-Không lưu raw session token; D1 lưu hash.
+D1 chỉ lưu session token hash. PIN credential/rate-limit/lockout sẽ được thêm cùng M1.2.
 
-PIN credential chưa nằm trong migration 0001. PIN hashing, pepper, rate limiting và lockout sẽ được thiết kế cùng AuthGate trong M1.
-
-### Store registry
-
-`store_registry` map Store tới durable object key/provisioning metadata và schema metadata control-plane.
-
-Operational schema version thật của Store DO vẫn được quản lý trong chính SQLite của Store DO qua `system_metadata`.
-
-## 7. M1 request trust boundary
-
-Bước M1 đầu tiên phải xây Device + Store execution context:
+## 6. Device + Store trust boundary
 
 ```text
-Desktop request
-      │
-      │ device identity
+Desktop Main
+      │ Authorization: Device <id>.<secret>
       ▼
-Cloudflare Worker
-      │
-      ├── lookup D1 devices
-      ├── kiểm tra device status
-      ├── resolve Store từ dữ liệu server-side
-      └── tạo execution context
+Worker
+      ├── validate auth scheme / UUID / secret format
+      ├── SHA-256 secret + constant-time compare
+      ├── lookup D1 Device + Store
+      ├── reject invalid/revoked/inactive states
+      └── build trusted DeviceContext
               │
               ▼
-       StoreDurableObject
+         trusted Store
 ```
 
-Guardrail:
+`GET /api/pos/context` là context/smoke endpoint hiện tại.
 
-- Client không được tự gửi `storeId` và được tin mặc định cho mutation.
-- Worker phải resolve Store context từ device/session server-side state.
-- Request không có device hợp lệ phải fail-closed.
-- Employee/auth/permission context sẽ được gắn tiếp vào execution context này.
+Client `x-store-id` không thay đổi trusted Store context.
 
-## 8. Store Durable Object - operational data plane
+Employee/Auth/Permission context ở M1.2/M1.3 phải tiếp tục nằm **sau** Device authentication. Employee session token sau này không được bypass revoked Device hoặc inactive Store.
 
-Flow hiện tại:
+## 7. System diagnostics boundary
 
 ```text
-storeId
-  ↓
-STORE_DO.idFromName(storeId)
-  ↓
-StoreDurableObject
-  ↓
-SQLite operational database
+/api/system/db-health
+/api/system/stores/:storeId/do-health
 ```
 
-Một Store có một operational single-writer boundary.
+Đây không phải POS business API.
 
-Foundation đã triển khai:
+- Nếu `SYSTEM_DIAGNOSTICS_TOKEN` chưa được cấu hình đủ mạnh → route trả 404 fail-closed.
+- Khi bật → yêu cầu `Authorization: Bearer <system-token>`.
+- Secret local đặt trong ignored `.dev.vars`; secret remote phải dùng deployment secret/config.
 
-- `StoreDurableObject` export/binding,
-- SQLite storage,
-- `system_metadata`,
+Diagnostic path `storeId` không phải precedent cho business mutation routing.
+
+## 8. Store Durable Object
+
+```text
+trusted storeId
+      ↓
+STORE_DO.idFromName(storeId)
+      ↓
+StoreDurableObject
+      ↓
+SQLite operational DB
+```
+
+Foundation hiện có:
+
 - persisted `store_id`,
-- identity mismatch guard,
-- health endpoint,
+- Store identity mismatch guard,
+- `system_metadata`,
 - schema migration runner,
-- current Store schema version 1 foundation,
-- transaction-wrapped migration application,
 - migration sequence validation,
-- reject invalid/newer schema version.
+- future/newer schema guard,
+- mỗi migration chạy trong `transactionSync`,
+- current Store schema version 1 foundation,
+- transaction/read-write/isolation tests.
 
-Automated tests hiện bao phủ:
+Migration v1 chưa tạo bảng nghiệp vụ là chủ ý. Từng nhóm table/session/product/bill/payment chỉ thêm khi vertical slice cần.
 
-- fresh schema version,
-- migration idempotency,
-- newer-schema guard,
-- Store identity persistence,
-- SQLite read/write,
-- transaction commit,
-- transaction rollback,
-- data isolation giữa hai Store DO,
-- identity lock.
+**Quy tắc cho mọi future Store DO route:** phải establish/verify Store identity trước khi đọc/ghi operational state.
 
-Lợi ích:
+## 9. Command trust boundary
 
-- transaction cục bộ cho table/session/bill/payment,
-- command idempotency rõ,
-- realtime connection có điểm hội tụ,
-- desktop/mobile không ghi trực tiếp vào database,
-- dễ cô lập dữ liệu giữa các Store.
+Client command intent:
 
-## 9. Operational entities dự kiến
+```ts
+{
+  commandId,
+  issuedAt,
+  commandType,
+  payload
+}
+```
 
-SQLite trong Store DO sẽ tiến hóa theo migration riêng, dự kiến gồm:
+Client schema strict và không nhận `storeId/deviceId/actorId` làm authority.
+
+Sau authentication, server enrich thành trusted internal command:
+
+```ts
+{
+  commandId,
+  issuedAt,
+  commandType,
+  payload,
+  storeId,
+  deviceId,
+  actorId
+}
+```
+
+- `storeId`: trusted Store context.
+- `deviceId`: authenticated Device.
+- `actorId`: authenticated Employee session.
+- `issuedAt`: client intent timestamp, **không** phải authoritative online clock.
+
+Open-session time, pricing, payment và audit execution timestamp phải dùng server time. Offline milestone sau cần clock/sync/boot-anchor policy riêng.
+
+## 10. Operational domain target
+
+Store DO SQLite sẽ tiến hóa theo migration:
 
 ```text
 table_types
@@ -277,178 +303,33 @@ print_template_versions
 print_jobs
 ```
 
-Đây là target domain map. **Không tạo tất cả trong migration foundation.** Từng nhóm entity chỉ được thêm khi vertical slice cần và có test/migration tương ứng.
+Không tạo tất cả trước khi vertical slice cần.
 
-## 10. Loại bàn là dữ liệu cấu hình
+Các invariant đã chốt:
 
-Không dùng enum cứng cho `bàn líp`, `bàn lỗ`, ...
+- loại bàn/pricing là dữ liệu cấu hình, không hard-code,
+- money dùng integer unit phù hợp VND, không floating-point,
+- timer UI không phải nguồn sự thật,
+- giá lịch sử dùng snapshot/version để config mới không sửa quá khứ,
+- time adjustment cần permission + reason + actor + audit,
+- V1 có chuyển bàn/gộp bill, không có split bill,
+- payment V1: `cash`, `bank_transfer`.
 
-`table_types` cho phép Owner tự tạo loại bàn và gắn pricing policy phù hợp.
+## 11. Printing
 
-Một bàn cụ thể tham chiếu `table_type_id` và có thể có override cấu hình nếu V1 pricing cần.
+Printing chạy ở Desktop Main Process.
 
-## 11. Pricing
+V1: 80mm, template mặc định, allowlisted placeholder/block editor, preview dùng cùng template semantics, template versioning và retry/idempotency cho print job.
 
-Pricing không hard-code một mức giá duy nhất.
-
-Target cho phép biểu diễn:
-
-- base hourly rate theo loại bàn,
-- time band,
-- ngày/nhóm ngày,
-- optional per-table override,
-- rounding/time policy.
-
-Khi phiên bắt đầu/được tính tiền, phải lưu đủ policy/version/snapshot cần thiết để thay đổi giá tương lai không làm sai lịch sử.
-
-Money lưu bằng integer minor/unit phù hợp với VND, không dùng floating-point cho tiền.
-
-## 12. Session, bill và time adjustment
-
-`TableSession` là nguồn sự thật cho thời gian chơi; timer UI chỉ là cách hiển thị.
-
-Điều chỉnh thời gian:
-
-- cần permission,
-- lý do bắt buộc,
-- actor bắt buộc,
-- audit delta hoặc before/after.
-
-Bill V1 gồm tiền bàn + sản phẩm, chưa có discount/surcharge.
-
-Giá sản phẩm phải snapshot vào bill item tại thời điểm bán.
-
-## 13. Chuyển bàn và gộp bill
-
-V1 có:
-
-- chuyển bàn,
-- gộp bill.
-
-V1 không có tách bill.
-
-Hai nghiệp vụ này phải đi qua command transaction, có audit và state transition rõ; không thực hiện bằng thao tác copy/delete ad-hoc.
-
-## 14. Thanh toán
-
-Phương thức V1:
-
-- cash,
-- bank_transfer.
-
-Payment completion phải transactionally finalize bill/session theo rule nghiệp vụ và trả bàn về trạng thái phù hợp.
-
-QR thanh toán là rendering concern dựa trên cấu hình chuyển khoản của Store; không phải một payment method thứ ba.
-
-## 15. Printing boundary
-
-Printing chạy main-side trên desktop.
-
-V1:
-
-- khổ 80mm,
-- template mặc định,
-- Owner chỉnh nội dung,
-- placeholder/block allowlist,
-- preview,
-- versioned template,
-- Windows driver/spooler integration.
-
-Ví dụ placeholder:
-
-```text
-{ten_cua_hang}
-{so_hoa_don}
-{ten_ban}
-{gio_vao}
-{gio_ra}
-{thoi_luong}
-{tong_tien_ban}
-{tong_hang_hoa}
-{tong_thanh_toan}
-{phuong_thuc_thanh_toan}
-{nhan_vien}
-{qr_thanh_toan}
-```
-
-Không cho arbitrary HTML/CSS/JavaScript trong V1 template editor.
-
-Preview và print dùng cùng template semantics.
+Không cho arbitrary HTML/CSS/JavaScript.
 
 Chi tiết: [`PRINTING_V1.md`](PRINTING_V1.md).
 
-## 16. Command model
+## 12. Mobile + offline
 
-Mọi mutation nghiệp vụ từ M1 đi qua command semantics:
+Mobile PWA là deferred scaffold. Khi triển khai, Mobile dùng cùng Worker APIs, contracts, commands và server business rules; không fork pricing/session/bill logic riêng.
 
-```text
-Client intent
-   ↓
-CommandEnvelope
-   ↓
-Worker auth/permission boundary
-   ↓
-Store Durable Object
-   ↓
-Idempotency check
-   ↓
-Domain validation
-   ↓
-Transactional mutation
-   ↓
-ProcessedCommand + DomainEvent
-   ↓
-Response / realtime propagation
-```
-
-Shared `CommandEnvelope` foundation đã tồn tại trong `@billiards/contracts`. Business-specific commands sẽ được thêm theo vertical slice.
-
-Không triển khai full event sourcing.
-
-Current state vẫn materialize trong SQLite; events phục vụ audit/realtime/sync/integration.
-
-## 17. Shared packages
-
-### `packages/contracts`
-
-Hiện đã có contract thật cho:
-
-- API health response,
-- `CommandEnvelope`.
-
-Tiếp tục mở rộng bằng runtime validation schemas, request/response contracts và business command/event contracts khi M1 triển khai.
-
-### `packages/domain`
-
-Hiện vẫn là scaffold foundation. Từ M1 sẽ chứa:
-
-- money/time primitives,
-- pricing,
-- table/session/bill state transitions,
-- transfer/merge rules,
-- pure validation.
-
-### `packages/shared`
-
-Chỉ chứa utility thật sự generic.
-
-## 18. Mobile PWA
-
-Mobile sau này thao tác đầy đủ như POS theo permission:
-
-- xem/mở bàn,
-- thêm món,
-- chuyển bàn,
-- gộp bill,
-- thanh toán,
-- xem hóa đơn/báo cáo,
-- quản lý phần được cấp quyền.
-
-Business rule không được duplicate riêng trong mobile.
-
-## 19. Offline boundary
-
-Offline triển khai sau khi online command flow ổn định:
+Offline đến sau online vertical slice:
 
 ```text
 Desktop local SQLite replica
@@ -460,68 +341,72 @@ Sync cursor/protocol
 Conflict/takeover policy
 ```
 
-Store DO vẫn là authoritative cloud operational writer trong kiến trúc mục tiêu.
-
-## 20. CI và release/update boundary
-
-Quality CI hiện tại:
+## 13. CI / test gate
 
 ```text
 Push / Pull Request
-        ↓
-GitHub Actions - Ubuntu
         ↓
 pnpm install --frozen-lockfile
         ↓
 contracts typecheck
         ↓
-Worker production/test typecheck
+Worker prod/test typecheck
         ↓
 Worker Vitest
         ↓
 Desktop typecheck + build
 ```
 
-Windows installer/release pipeline là bước riêng sau này:
+Worker tests hiện tại:
 
 ```text
-Tagged/release commit
-        ↓
-Windows build runner
-        ↓
-electron-builder / NSIS
-        ↓
-Release channel
-        ↓
-Windows POS updater
+Store Durable Object               9
+Device context/activation          9
+Device auth parser                 4
+System diagnostics auth            3
+Cross-Store installation           1
+Command trust boundary             3
+------------------------------------
+Total                             29
 ```
 
-Update app không được xóa local operational/cache database và không force restart giữa active session/bill.
+Desktop security path hiện được bảo vệ bằng typecheck/build + manual smoke; automated Electron integration/security tests vẫn còn thiếu.
 
-## 21. Quy tắc không phá vỡ
+## 14. Debt còn mở trước remote/pilot
+
+1. Activation-token issuance/admin UI và permission boundary.
+2. Privileged Device transfer/reset/installation-repair flow.
+3. `devices.last_seen_at` heartbeat/touch policy.
+4. Align TypeScript version giữa `@billiards/contracts` và Worker/Desktop.
+5. Automated Desktop tests cho trusted URL, IPC sender, safeStorage/recovery và DeviceGate.
+6. Code signing/notarization/update channel + packaged Windows smoke.
+7. Remote D1 migrations/secrets/observability/backup review.
+8. Khi M1.2 có session: authorize phải re-check Device + Store + User + Membership + Role status theo policy đã chốt.
+
+## 15. Quy tắc không phá vỡ
 
 1. V1 không có branch.
-2. Store = tenant/data isolation boundary.
-3. D1 = control plane.
-4. Store DO = operational single-writer boundary.
-5. Renderer không có Node/Electron trực tiếp.
-6. Device/Store/Auth/Permission context phải được resolve/enforce server-side.
-7. Command semantics tồn tại từ M1.
-8. Money không dùng floating-point.
-9. Timer UI không phải nguồn sự thật của thời gian chơi.
-10. Giá lịch sử không bị thay đổi bởi cấu hình giá mới.
-11. Offline đến sau online vertical slice.
-12. Mobile dùng chung contracts/commands, không fork business logic.
-13. Production/pilot schema chỉ đổi qua migration được review.
-14. Không chạy arbitrary script/code trong print template.
-15. CI phải tiếp tục bảo vệ contracts + Worker + tests + Desktop build trên thay đổi mới.
+2. Store = tenant/data-isolation boundary.
+3. D1 = control plane; Store DO = operational single-writer boundary.
+4. Renderer không giữ Device/session secret.
+5. Device/Store/Auth/Permission context resolve/enforce server-side.
+6. Client-supplied Store/Device/Actor ID không phải security authority.
+7. Packaged Desktop không gửi credential qua plaintext HTTP.
+8. Client `issuedAt` không phải authoritative online time.
+9. Money không dùng floating-point.
+10. Timer UI không phải nguồn sự thật.
+11. Giá lịch sử không đổi theo config mới.
+12. Offline đến sau online vertical slice.
+13. Mobile dùng chung contracts/commands/server rules.
+14. Production/pilot schema chỉ đổi qua reviewed migration.
+15. CI phải tiếp tục bảo vệ contracts + Worker + tests + Desktop build.
 
-## 22. Thứ tự triển khai tiếp theo
+## 16. Thứ tự triển khai tiếp theo
 
 ```text
 M0 Foundation ✅
       ↓
-M1.1 Device identity + Store context
+M1.1 Device + Store trust ✅
       ↓
 M1.2 Employee + PIN/AuthGate
       ↓
@@ -536,4 +421,4 @@ Products + Bill
 Payment + finalize
 ```
 
-Không bắt đầu UI nghiệp vụ lớn trước khi request trust boundary của Device/Store/Auth/Permission đủ ổn định.
+Không bắt đầu UI nghiệp vụ lớn trước khi Device/Store/Auth/Permission context đủ ổn định.
