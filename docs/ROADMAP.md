@@ -20,8 +20,8 @@ Roadmap này dùng để quyết định **thứ tự implementation và gate đ
 | M0 | Foundation/monorepo/Worker/D1/Store DO | ✅ Done |
 | M1.1 | Device identity + trusted Store | ✅ Done |
 | M1.2 | Employee PIN + AuthSession + AuthGate | ✅ Done |
-| M1.3 | Permission Context | ⏭ Next |
-| M1.4 | TableType + BilliardTable | ⬜ Planned |
+| M1.3 | Permission Context | ✅ Done |
+| M1.4 | TableType + BilliardTable | ⏭ Next |
 | M1.5 | Pricing + Open TableSession | ⬜ Planned |
 | M1.6 | Product + Bill + Payment + finalize | ⬜ Planned |
 | M2 | Business completeness | ⬜ Planned |
@@ -32,22 +32,20 @@ Roadmap này dùng để quyết định **thứ tự implementation và gate đ
 
 ---
 
-## M1.3 - Permission Context
+## M1.3 - Permission Context ✅
 
-### Mục tiêu
+### Kết quả đã triển khai
 
-Từ trusted `AuthContext`, Worker xác định chính xác actor được phép làm gì.
-
-### Thiết kế
+Trust chain hiện tại:
 
 ```text
 requireDevice
   ↓
 requireAuthSession
   ↓
-AuthContext
+trusted AuthContext
   ↓
-permission resolver
+resolvePermissionContext
   ↓
 PermissionContext
   ↓
@@ -56,80 +54,177 @@ requirePermission('...')
 business handler
 ```
 
-### Work packages
+Đã hoàn thành:
 
-#### M1.3-A - Permission contracts
+- shared `PermissionKey` allowlist/schema trong `@billiards/contracts`,
+- regression test khóa contract allowlist khớp D1 `permission_catalog`,
+- internal trusted `PermissionContext`,
+- resolver đọc current Membership/Role/`role_permissions` từ D1,
+- permission key lạ trong DB fail-closed,
+- `requirePermission(permissionKey)`,
+- `401` cho auth/current actor không còn hợp lệ,
+- `403 permission_denied` cho actor đã auth nhưng thiếu capability,
+- permission removal có hiệu lực ở request kế tiếp,
+- role reassignment sau login có hiệu lực ở request kế tiếp,
+- cross-Store isolation + client metadata spoof regression coverage,
+- `GET /api/auth/permissions` trả capability snapshot an toàn cho client UX,
+- Electron Main giữ Device/AuthSession secrets; IPC/Preload chỉ chuyển safe permission list,
+- Renderer `PermissionGate` fail-closed nếu không xác minh được permission,
+- `hasPermission(...)` ở Renderer chỉ là UX; Worker vẫn là authorization authority.
 
-- Permission key schema/type lấy từ system catalog allowlist.
-- Không cho client tự invent capability key.
-- Internal `PermissionContext` chứa trusted identity + resolved permission set.
+M1.3 không cần migration mới; sử dụng `permission_catalog` và `role_permissions` đã có từ control-plane migration 0001.
 
-#### M1.3-B - Resolver
+### Debt sau M1.3
 
-- Query `role_permissions` theo `AuthContext.storeId + roleId`.
-- Re-check current membership/role status.
-- Absence = deny.
-- Role thay đổi phải có hiệu lực ở request kế tiếp.
-
-#### M1.3-C - Enforcement
-
-- `requirePermission(permissionKey)` middleware/helper.
-- 401 dành cho auth invalid; 403 dành cho actor đã auth nhưng thiếu permission.
-- Không trả permission authority từ request body/header.
-
-#### M1.3-D - Tests
-
-Bắt buộc cover:
-
-- granted permission → pass,
-- missing permission → 403,
-- cross-Store role/permission spoof → fail,
-- role disabled → fail,
-- membership suspended/revoked → fail,
-- role assignment đổi sau login → authorize theo role hiện hành,
-- client-supplied actor/permission metadata không có tác dụng.
-
-### Gate đóng M1.3
-
-- Có ít nhất một protected integration route/test đi qua full Device → Auth → Permission chain.
-- Không business mutation nào bypass `requirePermission`.
-- `pnpm run ci` xanh.
+- Renderer capability snapshot hiện refresh khi `PermissionGate` mount/retry; nếu permission thay đổi trong lúc UI đang mở thì UI có thể tạm stale, nhưng Worker enforce current permission ở request kế tiếp. Có thể bổ sung refresh-on-focus/403/realtime sau khi POS flow ổn định.
+- `PermissionGate.tsx` và `AuthGate.tsx` cần formatter/refactor riêng; không chặn M1.4.
+- Không business mutation nào được phép dựa vào Renderer `hasPermission(...)` làm security boundary.
 
 ---
 
-## M1.4 - Table foundation
+## M1.4 - Table foundation ⏭
 
-### Schema Store DO
+### Mục tiêu
 
-Tạo migration tối thiểu cho:
+Tạo lớp operational data đầu tiên trong Store Durable Object SQLite cho cấu hình bàn.
+
+### Store DO migration
+
+Tạo migration kế tiếp sau foundation version 1, tối thiểu cho:
 
 ```text
 table_types
 billiard_tables
 ```
 
+Không đưa hai bảng này vào D1. D1 tiếp tục chỉ giữ control plane; table configuration là operational Store-scoped data và phải nằm trong Store DO tương ứng.
+
+### Model đề xuất
+
+`table_types`:
+
+```text
+id
+name
+status: active | disabled
+sort_order
+created_at
+updated_at
+```
+
+`billiard_tables`:
+
+```text
+id
+table_type_id
+name
+status: active | disabled
+sort_order
+created_at
+updated_at
+```
+
+Tên/number uniqueness policy phải được khóa bằng schema + tests. Khuyến nghị V1 dùng một display `name` duy nhất trong Store, tránh cùng lúc có `number` và `name` nhưng semantics chưa rõ.
+
 ### Invariant
 
 - ID/data chỉ tồn tại trong Store DO tương ứng.
-- Table type là configurable data.
-- Không hard-code bàn lỗ/bàn líp vào domain branching.
-- Table name/number uniqueness policy phải chốt rõ.
-- Không xóa cứng entity đã được lịch sử nghiệp vụ tham chiếu; dùng status/disable policy nếu cần.
+- Table type là configurable data; không hard-code bàn lỗ/bàn líp vào domain branching.
+- `billiard_tables.status` ở M1.4 chỉ mô tả lifecycle cấu hình (`active/disabled`).
+- **Không persist `occupied` như trạng thái master của bàn ở M1.4.** Từ M1.5, trạng thái đang chơi phải được suy ra từ active `TableSession` để tránh hai nguồn sự thật.
+- Không xóa cứng TableType/Table sau khi đã có lịch sử nghiệp vụ tham chiếu; disable là lifecycle mặc định.
+- Không tạo pricing/session/product/bill schema sớm trong M1.4.
 
-### API/permission dự kiến
+### API / permission
 
 ```text
 table.view
+  → list/read table types + tables cần cho POS
+
 table.manage
+  → create/update/disable table type + table
 ```
 
-### Gate
+Worker phải đi theo thứ tự:
 
-- create/read/update/disable table/type,
-- Store isolation test,
-- permission test,
-- migration rollback/restart compatibility,
-- CI xanh.
+```text
+requireDevice
+→ requireAuthSession
+→ requirePermission(...)
+→ derive trusted storeId
+→ route request tới STORE_DO.idFromName(storeId)
+→ Store DO verify persisted store identity
+→ operational query/mutation
+```
+
+Client không được truyền `storeId`, `actorId`, role hoặc permission làm authority.
+
+### Work packages
+
+#### M1.4-A - Store DO schema v2
+
+- `migration-002-table-foundation.ts`,
+- register migration theo sequence hiện có,
+- constraints/indexes/foreign keys cần thiết,
+- migration restart/idempotency behavior,
+- schema-version compatibility tests.
+
+#### M1.4-B - Contracts
+
+- strict schemas/types cho TableType/BilliardTable,
+- create/update request schemas không chứa trusted identity metadata,
+- response schemas dùng chung Worker/Desktop.
+
+#### M1.4-C - Store DO repository/service
+
+- list/read/create/update/disable TableType,
+- list/read/create/update/disable BilliardTable,
+- transaction/constraint mapping rõ ràng,
+- không để Worker/D1 giữ duplicate operational state.
+
+#### M1.4-D - Worker routes + authorization
+
+- `table.view` cho read path,
+- `table.manage` cho management mutation,
+- trusted Store routing,
+- stable 4xx/5xx error mapping.
+
+#### M1.4-E - Tests
+
+Bắt buộc cover:
+
+- migration v1 → v2,
+- restart DO không làm hỏng schema/data,
+- create/read/update/disable TableType,
+- create/read/update/disable BilliardTable,
+- table type reference constraint,
+- uniqueness rule,
+- Store A không đọc/ghi Store B,
+- `table.view` granted/missing,
+- `table.manage` granted/missing,
+- client-supplied Store/Actor metadata không có tác dụng.
+
+#### M1.4-F - Desktop table management/read smoke
+
+Chỉ làm UI tối thiểu đủ chứng minh vertical path:
+
+```text
+Authenticated Employee
+→ PermissionGate
+→ list tables
+→ owner/manager có table.manage thì quản lý cấu hình
+```
+
+Không mở bàn/timer ở M1.4.
+
+### Gate đóng M1.4
+
+- Store DO schema version mới migrate/restart an toàn,
+- CRUD-like management dùng disable thay hard delete,
+- Store isolation được automated-test,
+- Worker authorization dùng `requirePermission`,
+- Desktop list/table-management smoke chạy được,
+- `pnpm run ci` xanh.
 
 ---
 
@@ -162,6 +257,7 @@ Store + Device + Actor + server execution time
 ### Invariant
 
 - một bàn không có hai active session,
+- `occupied`/`available` là derived operational state từ active session, không phải mutable master flag độc lập,
 - open operation idempotent theo `commandId`,
 - authoritative start time do server quyết định,
 - operation atomic trong Store DO.
@@ -187,7 +283,7 @@ Store + Device + Actor + server execution time
 ### Bill
 
 - bill gắn active table session,
-- bill items immutable history fields cần thiết,
+- bill items giữ immutable history fields cần thiết,
 - V1 chưa discount/surcharge/split bill.
 
 ### Payment
@@ -205,7 +301,7 @@ Một finalize transaction phải đảm bảo:
 payment accepted
   + bill closed
   + table session closed
-  + table available
+  + derived table state becomes available
 ```
 
 Không được có half-finalized state.
@@ -225,7 +321,7 @@ Login
 → table available
 ```
 
-luồng trên chạy end-to-end online và có automated domain/integration coverage.
+Luồng trên chạy end-to-end online và có automated domain/integration coverage.
 
 ---
 
@@ -322,20 +418,29 @@ Bắt buộc trước cửa hàng thật:
 
 ## Cross-cutting technical debt
 
-### P0
+### P0 trước business mutation
 
-- Permission Context trước business mutation.
-- Branch protection trước remote/pilot.
-- Release/update security trước phân phối installer thật.
+- ✅ Permission Context đã hoàn thành.
+- Mọi business route mới phải dùng trusted Store/Device/Actor + `requirePermission`.
+- Command idempotency bắt buộc trước mutation như OpenTableSession; M1.4 configuration mutation phải có error/transaction semantics rõ ràng và không được tạo duplicate state.
+
+### P0 trước remote/pilot
+
+- Branch protection cho `main`: PR-only + required CI status.
+- Activation-token issuance/admin flow.
+- Device transfer/reset/installation repair.
+- Remote migrations/secrets/observability/backup/restore.
+- Signing/notarization/update channel + packaged Windows smoke.
 
 ### P1
 
 - Align TypeScript versions giữa packages.
 - Chuẩn hóa formatter/linter và đưa vào CI sau khi baseline sạch.
 - Automated Electron integration/security tests.
-- Split `AuthGate.tsx` trước khi tiếp tục mở rộng UI.
+- Split `AuthGate.tsx`; normalize `PermissionGate.tsx` formatting trước khi Renderer tiếp tục phình to.
 - AuthSession pruning/concurrent-session policy.
 - `devices.last_seen_at` heartbeat policy.
+- Permission UX refresh strategy (focus/403/realtime) khi role-management UI được thêm.
 
 ### P2
 
@@ -352,3 +457,5 @@ Một milestone chỉ được đánh ✅ khi:
 4. `pnpm run ci` xanh,
 5. manual smoke cần thiết cho native/Desktop path đã chạy,
 6. PR mô tả rõ migration/security/rollback impact.
+
+Nếu docs bị bỏ sót trong một feature PR đã merge, phải tạo follow-up docs PR trước khi bắt đầu milestone kế tiếp để trạng thái `main` không tiếp tục sai lệch.

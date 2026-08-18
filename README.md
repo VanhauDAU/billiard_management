@@ -7,8 +7,9 @@ Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid, ưu tiê
 - **M0 - Foundation:** ✅ Done.
 - **M1.1 - Device identity + Store execution context:** ✅ Done.
 - **M1.2 - Employee PIN authentication + AuthGate:** ✅ Done.
-- **Post-M1.2 review/hardening:** ✅ auth response `no-store`, regression coverage cho Device reactivation → AuthSession revocation, docs/roadmap đồng bộ lại với code.
-- **M1.3 - Permission Context:** ⏭ Next.
+- **Post-M1.2 review/hardening:** ✅ Done.
+- **M1.3 - Permission Context:** ✅ Done.
+- **M1.4 - TableType + BilliardTable:** ⏭ Next.
 - Remote/pilot: chưa triển khai; còn business slice, release/update, remote migrations/secrets/observability và packaged Windows smoke.
 
 Tiến độ chi tiết: [`docs/PROGRESS.md`](docs/PROGRESS.md)  
@@ -48,7 +49,7 @@ Cloudflare Worker / Hono
                          bills / payments / commands / events
 ```
 
-Cloudflare Durable Object storage được chọn làm operational boundary vì mỗi object có storage riêng, transactional và strongly consistent; D1 giữ control-plane metadata và các batch mutation liên quan control-plane được thực thi tuần tự trong transaction. Xem [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) cho invariant chi tiết.
+D1 giữ control-plane metadata. Operational billiards state nằm trong Store Durable Object SQLite theo Store; M1.4 là milestone đầu tiên bắt đầu thêm schema nghiệp vụ thật vào Store DO.
 
 ## Trust chain đã triển khai
 
@@ -63,22 +64,28 @@ Worker requireDevice
       │ resolve Store từ D1, không tin client storeId
       ▼
 Trusted DeviceContext
-      │
-      ▼
+      ↓
 Employee PIN authentication
       │ PBKDF2-SHA256 + server-side lockout
       ▼
 AuthSession bound Store + User + Membership + Device
-      │
-      ▼
+      ↓
 requireAuthSession
       │ derive actor server-side
       ▼
 Trusted AuthContext
-      │
+      ↓
+resolvePermissionContext
+      │ current Membership + Role + role_permissions
       ▼
-Permission Context (M1.3)
+Trusted PermissionContext
+      ↓
+requirePermission(permissionKey)
+      ↓
+Business handler
 ```
+
+Renderer có thể nhận capability snapshot qua `/api/auth/permissions` để hide/disable UI, nhưng **Renderer `hasPermission(...)` chỉ là UX**. Worker `requirePermission(...)` mới là security authority.
 
 ### M1.1 - Device + Store
 
@@ -116,6 +123,25 @@ Permission Context (M1.3)
 - AuthGate: chọn nhân viên → nhập PIN → lockout countdown → authenticated state → logout,
 - restart Desktop có thể restore phiên còn hợp lệ qua server validation.
 
+### M1.3 - Permission Context
+
+Đã có:
+
+- shared system permission allowlist/schema trong `@billiards/contracts`,
+- D1 `permission_catalog` + `role_permissions` làm control-plane permission source,
+- trusted internal `PermissionContext`,
+- permission resolver re-check current Membership/Role và fail-closed với permission key lạ,
+- `requirePermission(permissionKey)` server-side,
+- `401` cho authentication/current actor invalid; `403 permission_denied` cho actor thiếu capability,
+- permission removal và role reassignment có hiệu lực ở request kế tiếp,
+- cross-Store/client-spoof regression coverage,
+- `GET /api/auth/permissions` cho safe client capability snapshot,
+- Electron Main giữ raw credentials, IPC/Preload chỉ expose permission list,
+- Renderer `PermissionGate` fail-closed khi không xác minh được permission,
+- Worker integration tests đi qua full Device → AuthSession → Permission chain.
+
+M1.3 không thêm D1 migration mới.
+
 ## Nghiệp vụ V1 chính
 
 - Nhân viên + PIN login.
@@ -139,6 +165,7 @@ Permission Context (M1.3)
 ```text
 billiard_management/
 ├── .github/
+│   ├── pull_request_template.md
 │   └── workflows/ci.yml
 ├── apps/
 │   ├── desktop/       # Electron POS
@@ -231,6 +258,19 @@ pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local 
 
 Không apply migration remote như một thao tác mặc định. Remote/pilot phải review migrations, secrets, backup/recovery và observability trước.
 
+## Store DO schema
+
+Store DO hiện đang ở schema version **1 - foundation**; chưa có operational billiards tables.
+
+M1.4 sẽ tạo schema version 2 cho:
+
+```text
+table_types
+billiard_tables
+```
+
+Các bảng này nằm trong Store DO SQLite, **không nằm trong D1**.
+
 ## Quality gates
 
 Gate chuẩn từ root:
@@ -255,7 +295,7 @@ Nếu thay `apps/worker/wrangler.jsonc`:
 pnpm --dir apps/worker run cf-typegen
 ```
 
-Worker suite hiện cover Store DO, Device activation/context/isolation, system diagnostics, command trust boundary, PIN KDF, AuthSession credential, auth contracts/service/routes, lockout, session invalidation và Device reactivation session revocation.
+Worker suite hiện cover Store DO foundation/isolation, Device activation/context/isolation, system diagnostics, command trust boundary, PIN KDF, AuthSession credential/auth routes, session invalidation/reactivation, auth cache policy và Permission Context authorization.
 
 **CI debt còn mở:** lint/format gate chưa được chuẩn hóa toàn monorepo; Desktop chưa có automated Electron integration/security tests; Mobile chưa tham gia root CI vì vẫn deferred scaffold.
 
@@ -265,31 +305,32 @@ Worker suite hiện cover Store DO, Device activation/context/isolation, system 
 2. D1 = control plane; Store DO = operational single-writer boundary.
 3. Renderer không giữ Device/session secret.
 4. Device/Store/Auth/Permission context resolve và enforce server-side.
-5. Client `storeId/deviceId/actorId` không phải security authority.
-6. Client `issuedAt` không phải authoritative online clock.
-7. PIN không plaintext, không fast hash; lockout nằm server-side.
-8. Auth responses không được cache.
-9. Money không dùng floating-point.
-10. Timer UI không phải nguồn sự thật.
-11. Giá lịch sử không đổi theo config mới.
-12. Mutation nghiệp vụ đi qua command semantics + idempotency policy.
-13. Offline đến sau online vertical slice.
-14. Mobile dùng chung contracts/commands/server rules.
-15. Production/pilot schema chỉ đổi qua reviewed migration.
+5. Client `storeId/deviceId/actorId/role/permission` không phải security authority.
+6. Renderer capability snapshot chỉ là UX; Worker `requirePermission` là authority.
+7. Client `issuedAt` không phải authoritative online clock.
+8. PIN không plaintext, không fast hash; lockout nằm server-side.
+9. Auth responses không được cache.
+10. Money không dùng floating-point.
+11. Timer UI không phải nguồn sự thật.
+12. Giá lịch sử không đổi theo config mới.
+13. Mutation nghiệp vụ đi qua command/transaction/idempotency semantics phù hợp với risk của operation.
+14. Offline đến sau online vertical slice.
+15. Mobile dùng chung contracts/commands/server rules.
+16. Production/pilot schema chỉ đổi qua reviewed migration.
 
 ## Bước tiếp theo
 
-M1 tiếp tục theo thứ tự:
+**M1.4 - TableType + BilliardTable**:
 
-1. ✅ Device identity + Store context.
-2. ✅ Employee PIN + AuthGate.
-3. ⏭ **Permission Context**.
-4. TableType + BilliardTable.
-5. Pricing foundation + Open TableSession.
-6. Server-time timer semantics.
-7. Product catalog + add item với price snapshot.
-8. Bill lifecycle.
-9. Cash / bank-transfer payment.
-10. Finalize bill/session → bàn trở về `available`.
+1. khóa table domain/schema decisions,
+2. Store DO migration version 2,
+3. shared contracts,
+4. Store DO table repository/service,
+5. Worker `table.view` / `table.manage` routes,
+6. migration/Store-isolation/permission tests,
+7. Desktop list/management smoke tối thiểu,
+8. CI + docs.
 
-Không bắt đầu UI nghiệp vụ lớn trước khi M1.3 server-side authorization hoàn chỉnh. Xem [`docs/ROADMAP.md`](docs/ROADMAP.md) cho gate và thứ tự triển khai chi tiết.
+Trong M1.4 chỉ quản lý lifecycle cấu hình `active/disabled`. Không lưu `occupied` như master flag; từ M1.5 trạng thái đang sử dụng phải derive từ active `TableSession`.
+
+Không bắt đầu pricing/open-table/timer/product/bill/offline trước khi M1.4 đóng. Xem [`docs/ROADMAP.md`](docs/ROADMAP.md) cho gate chi tiết.
