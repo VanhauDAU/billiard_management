@@ -16,22 +16,8 @@ import {
 } from '../device/device-service'
 
 import {
-  isTrustedRendererUrl
-} from '../security/trusted-url'
-
-function assertTrustedSender(
-  senderUrl: string
-): void {
-  if (
-    !isTrustedRendererUrl(
-      senderUrl
-    )
-  ) {
-    throw new Error(
-      'Forbidden IPC sender'
-    )
-  }
-}
+  assertTrustedIpcSender
+} from '../security/ipc-sender'
 
 function parseActivationInput(
   value: unknown
@@ -76,13 +62,7 @@ export function registerDeviceIpc(): void {
     IPC_CHANNELS.deviceGetState,
 
     async (event) => {
-      const senderUrl =
-        event.senderFrame?.url ??
-        event.sender.getURL()
-
-      assertTrustedSender(
-        senderUrl
-      )
+      assertTrustedIpcSender(event)
 
       return getDesktopDeviceState()
     }
@@ -95,13 +75,7 @@ export function registerDeviceIpc(): void {
       event,
       rawInput: unknown
     ) => {
-      const senderUrl =
-        event.senderFrame?.url ??
-        event.sender.getURL()
-
-      assertTrustedSender(
-        senderUrl
-      )
+      assertTrustedIpcSender(event)
 
       const input =
         parseActivationInput(
