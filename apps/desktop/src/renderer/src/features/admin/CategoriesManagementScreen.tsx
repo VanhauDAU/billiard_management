@@ -460,24 +460,26 @@ export function CategoriesManagementScreen(): React.JSX.Element {
           ========================================================= */}
       {isCreateModalOpen && (
         <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
-          <div className="modal-card" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Tạo danh mục mới</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setIsCreateModalOpen(false)}>
+          <div className="modal-card" style={{ maxWidth: '500px', borderRadius: '12px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', borderRadius: '12px 12px 0 0' }}>
+              <h3 className="modal-title" style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Tạo danh mục mới</h3>
+              <button type="button" className="modal-close-btn" style={{ fontSize: '18px', cursor: 'pointer', background: 'none', border: 'none', color: '#64748b' }} onClick={() => setIsCreateModalOpen(false)}>
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleCreateSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 0' }}>
-                <div className="field-group">
-                  <label className="field-label">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>
                     Tên danh mục <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
                     type="text"
-                    className="admin-input"
-                    placeholder="Nhập tên danh mục (vd: Đồ uống, Mì gói, Gậy cơ...)"
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s' }}
+                    onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
+                    onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
+                    placeholder="Nhập tên danh mục (vd: Đồ uống, Mì gói...)"
                     value={categoryName}
                     onChange={(e) => setCategoryName(e.target.value)}
                     required
@@ -485,11 +487,13 @@ export function CategoriesManagementScreen(): React.JSX.Element {
                   />
                 </div>
 
-                <div className="field-group">
-                  <label className="field-label">Mô tả / Ghi chú</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>Mô tả / Ghi chú</label>
                   <textarea
-                    className="admin-input"
                     rows={3}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s', resize: 'vertical' }}
+                    onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
+                    onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
                     placeholder="Mô tả phân loại danh mục này..."
                     value={categoryDescription}
                     onChange={(e) => setCategoryDescription(e.target.value)}
@@ -497,18 +501,17 @@ export function CategoriesManagementScreen(): React.JSX.Element {
                 </div>
               </div>
 
-              <div className="admin-modal-actions">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderRadius: '0 0 12px 12px' }}>
                 <button
                   type="button"
-                  className="admin-btn-secondary"
+                  style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}
                   onClick={() => setIsCreateModalOpen(false)}
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="admin-btn-primary"
-                  style={{ background: '#0088ff' }}
+                  style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#0088ff', color: '#ffffff', fontWeight: 600, cursor: 'pointer', fontSize: '14px', opacity: isSubmitting ? 0.7 : 1 }}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? 'Đang lưu...' : 'Lưu'}
@@ -524,76 +527,152 @@ export function CategoriesManagementScreen(): React.JSX.Element {
           ========================================================= */}
       {isEditModalOpen && activeCategory && (
         <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
-          <div className="modal-card" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Chi tiết & Sửa danh mục</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setIsEditModalOpen(false)}>
+          <div className="modal-card" style={{ maxWidth: '700px', borderRadius: '12px', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', borderRadius: '12px 12px 0 0', flexShrink: 0 }}>
+              <h3 className="modal-title" style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Chi tiết & Sửa danh mục</h3>
+              <button type="button" className="modal-close-btn" style={{ fontSize: '18px', cursor: 'pointer', background: 'none', border: 'none', color: '#64748b' }} onClick={() => setIsEditModalOpen(false)}>
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 0' }}>
-                <div className="field-group">
-                  <label className="field-label">
-                    Tên danh mục <span style={{ color: '#ef4444' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="admin-input"
-                    value={categoryName}
-                    onChange={(e) => setCategoryName(e.target.value)}
-                    required
-                  />
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              {/* Form Bên Trái (Cập nhật thông tin) */}
+              <form onSubmit={handleEditSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid #e2e8f0', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+                      Tên danh mục <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s' }}
+                      onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
+                      onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
+                      value={categoryName}
+                      onChange={(e) => setCategoryName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>Mô tả / Ghi chú</label>
+                    <textarea
+                      rows={3}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s', resize: 'vertical' }}
+                      onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
+                      onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
+                      value={categoryDescription}
+                      onChange={(e) => setCategoryDescription(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '14px', borderRadius: '8px', fontSize: '13.5px', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '18px' }}>📦</span>
+                    <span>Danh mục này hiện đang chứa <strong>{activeCategory.itemCount ?? 0} mặt hàng</strong>.</span>
+                  </div>
                 </div>
 
-                <div className="field-group">
-                  <label className="field-label">Mô tả / Ghi chú</label>
-                  <textarea
-                    className="admin-input"
-                    rows={3}
-                    value={categoryDescription}
-                    onChange={(e) => setCategoryDescription(e.target.value)}
-                  />
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', fontSize: '12.5px', color: '#64748b' }}>
-                  <span>Số lượng mặt hàng hiện tại: <strong>{activeCategory.itemCount ?? 0}</strong></span>
-                </div>
-              </div>
-
-              <div className="admin-modal-actions" style={{ justifyContent: 'space-between' }}>
-                <button
-                  type="button"
-                  className="admin-btn-secondary"
-                  style={{ color: '#ef4444', borderColor: '#fca5a5' }}
-                  onClick={() => handleDeleteCategory(activeCategory.id, activeCategory.name)}
-                >
-                  🗑️ Xóa danh mục
-                </button>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderBottomLeftRadius: '12px' }}>
                   <button
                     type="button"
-                    className="admin-btn-secondary"
-                    onClick={() => setIsEditModalOpen(false)}
+                    style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #fca5a5', background: '#fef2f2', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '13.5px' }}
+                    onClick={() => handleDeleteCategory(activeCategory.id, activeCategory.name)}
                   >
-                    Hủy
+                    🗑️ Xóa
                   </button>
-                  <button
-                    type="submit"
-                    className="admin-btn-primary"
-                    style={{ background: '#0088ff' }}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
-                  </button>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontWeight: 600, cursor: 'pointer', fontSize: '13.5px' }}
+                      onClick={() => setIsEditModalOpen(false)}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#0088ff', color: '#ffffff', fontWeight: 600, cursor: 'pointer', fontSize: '13.5px', opacity: isSubmitting ? 0.7 : 1 }}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Đang lưu...' : 'Lưu'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Danh sách sản phẩm thuộc danh mục Bên Phải */}
+              <div style={{ flex: 1, padding: '24px', overflowY: 'auto', background: '#ffffff', borderBottomRightRadius: '12px' }}>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  Mặt hàng trong danh mục
+                  <span style={{ background: '#e2e8f0', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontSize: '12px' }}>
+                    {activeCategory.itemCount ?? 0}
+                  </span>
+                </h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {(() => {
+                    const norm = activeCategory.name.toLowerCase()
+                    let products: Array<{ id: string; name: string; price: number; img: string }> = []
+                    if (norm.includes('giờ') || norm.includes('gio')) {
+                      products = [
+                        { id: '1', name: 'Bida Lỗ (Pool)', price: 60000, img: '🎱' },
+                        { id: '2', name: 'Bida Phăng (Carom)', price: 70000, img: '🔴' }
+                      ]
+                    } else if (norm.includes('đồ uống') || norm.includes('uong')) {
+                      products = [
+                        { id: '3', name: 'Sting Dâu', price: 15000, img: '🥤' },
+                        { id: '4', name: 'Bò Húc (Redbull)', price: 20000, img: '🥫' },
+                        { id: '5', name: 'Nước suối Dasani', price: 10000, img: '💧' },
+                        { id: '6', name: 'Cafe Muối', price: 25000, img: '☕' }
+                      ]
+                    } else if (norm.includes('mỳ') || norm.includes('noodle') || norm.includes('đồ ăn')) {
+                      products = [
+                        { id: '7', name: 'Mỳ xào bò', price: 35000, img: '🍝' },
+                        { id: '8', name: 'Mỳ trứng xúc xích', price: 30000, img: '🍜' },
+                        { id: '9', name: 'Cơm rang dưa bò', price: 40000, img: '🍛' }
+                      ]
+                    } else if (norm.includes('thịt')) {
+                      products = [
+                        { id: '10', name: 'Khô bò vắt chanh', price: 50000, img: '🥩' },
+                        { id: '11', name: 'Khô gà lá chanh', price: 40000, img: '🍗' }
+                      ]
+                    } else {
+                      products = [
+                        { id: '12', name: 'Mặt hàng mẫu 1', price: 15000, img: '📦' },
+                        { id: '13', name: 'Mặt hàng mẫu 2', price: 25000, img: '📦' }
+                      ]
+                    }
+
+                    if (activeCategory.itemCount === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8', fontSize: '13.5px' }}>
+                          <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>📭</span>
+                          Danh mục này chưa có mặt hàng nào.
+                        </div>
+                      )
+                    }
+
+                    return products.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', border: '1px solid #f1f5f9', borderRadius: '8px', transition: 'background 0.2s', cursor: 'default' }} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ width: '44px', height: '44px', background: '#f1f5f9', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+                          {p.img}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>{p.name}</div>
+                          <div style={{ fontSize: '13px', color: '#0088ff', fontWeight: 700 }}>
+                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.price)}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  })()}
                 </div>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
     </div>
   )
 }
+
