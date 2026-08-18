@@ -1,3 +1,4 @@
 declare module 'cloudflare:workers' {
-  interface ProvidedEnv extends CloudflareBindings {}
+  interface ProvidedEnv
+    extends CloudflareBindings {}
 }

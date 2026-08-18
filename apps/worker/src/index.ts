@@ -1,8 +1,19 @@
 import { Hono } from 'hono'
+import type {
+  AppEnv
+} from './types/app-env'
+
+import {
+  deviceRoutes
+} from './routes/devices'
+
+import {
+  posRoutes
+} from './routes/pos'
 import type { ApiHealthResponse } from '@billiards/contracts'
 export { StoreDurableObject } from './durable-objects/store-durable-object'
-const app = new Hono<{ Bindings: CloudflareBindings }>()
-
+const app =
+  new Hono<AppEnv>()
 app.get('/', (c) => {
   return c.json({
     ok: true,
@@ -113,4 +124,13 @@ app.get('/api/system/stores/:storeId/do-health', async (c) => {
     )
   }
 })
+app.route(
+  '/api/devices',
+  deviceRoutes
+)
+
+app.route(
+  '/api/pos',
+  posRoutes
+)
 export default app
