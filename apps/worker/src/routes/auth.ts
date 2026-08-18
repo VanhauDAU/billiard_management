@@ -18,6 +18,15 @@ import {
 
 export const authRoutes = new Hono<AppEnv>();
 
+// Authentication responses can contain employee identity metadata or,
+// for PIN login, a one-time raw session credential. Keep the entire auth
+// surface explicitly non-cacheable, including error responses.
+authRoutes.use("*", async (c, next) => {
+  await next();
+
+  c.header("Cache-Control", "no-store");
+});
+
 // =========================================================
 // ALL AUTH ROUTES REQUIRE A TRUSTED DEVICE FIRST
 // =========================================================

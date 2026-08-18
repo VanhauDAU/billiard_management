@@ -1,53 +1,120 @@
 # Billiard Management
 
-Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid, ưu tiên POS desktop Windows và mở rộng Mobile PWA sau khi online vertical slice ổn định.
+Hệ thống quản lý cửa hàng billiards theo kiến trúc hybrid, ưu tiên **Windows Desktop POS** trước, sau đó mở rộng Mobile PWA và offline/sync khi online vertical slice đã ổn định.
+
+## Trạng thái dự án
+
+- **M0 - Foundation:** ✅ Done.
+- **M1.1 - Device identity + Store execution context:** ✅ Done.
+- **M1.2 - Employee PIN authentication + AuthGate:** ✅ Done.
+- **Post-M1.2 review/hardening:** ✅ auth response `no-store`, regression coverage cho Device reactivation → AuthSession revocation, docs/roadmap đồng bộ lại với code.
+- **M1.3 - Permission Context:** ⏭ Next.
+- Remote/pilot: chưa triển khai; còn business slice, release/update, remote migrations/secrets/observability và packaged Windows smoke.
+
+Tiến độ chi tiết: [`docs/PROGRESS.md`](docs/PROGRESS.md)  
+Kế hoạch milestone: [`docs/ROADMAP.md`](docs/ROADMAP.md)  
+Kiến trúc: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)  
+Scope V1: [`docs/SYSTEM_SCOPE_V1.md`](docs/SYSTEM_SCOPE_V1.md)
 
 ## Scope đã chốt
 
-- **Một Store = một cửa hàng vật lý.**
+- **Một Store = một cửa hàng vật lý** và là tenant/data-isolation boundary.
 - V1 **không có branch/chi nhánh**.
-- Desktop POS: Electron + React + TypeScript, ưu tiên Windows khi triển khai.
-- Mobile PWA: về sau thao tác đầy đủ như POS theo permission.
+- Desktop POS: Electron + React + TypeScript; Windows là target triển khai đầu tiên.
+- Mobile PWA: triển khai sau, dùng cùng Worker APIs/contracts/business rules và permission model.
 - API/Gateway: Cloudflare Workers + Hono.
 - Control plane: Cloudflare D1.
 - Operational data plane: một SQLite-backed **Store Durable Object** cho mỗi Store.
-- Offline local SQLite + sync/outbox triển khai sau online vertical slice.
+- Offline local SQLite + persistent outbox + sync triển khai sau online vertical slice.
 
-Scope nghiệp vụ chi tiết: [`docs/SYSTEM_SCOPE_V1.md`](docs/SYSTEM_SCOPE_V1.md).
+## Kiến trúc hiện tại
 
-## Trạng thái hiện tại
+```text
+Windows Desktop POS                  Mobile PWA (deferred)
+Electron + React                     React + Vite
+        │
+        │ Main Process owns credentials/network/native capabilities
+        ▼
+Cloudflare Worker / Hono
+        │
+        ├──────────────► D1 Control Plane
+        │                Store / User / Role / Permission
+        │                Device / PIN / AuthSession / Registry
+        │
+        └──────────────► Store Durable Object
+                         one SQLite DB / Store
+                         operational single-writer boundary
+                         tables / pricing / sessions / products /
+                         bills / payments / commands / events
+```
 
-**M0 - Foundation đã hoàn thành. M1.1 - Device identity + Store execution context đã hoàn thành theo local/functional gate.**
+Cloudflare Durable Object storage được chọn làm operational boundary vì mỗi object có storage riêng, transactional và strongly consistent; D1 giữ control-plane metadata và các batch mutation liên quan control-plane được thực thi tuần tự trong transaction. Xem [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) cho invariant chi tiết.
 
-Hiện hệ thống đã có:
+## Trust chain đã triển khai
 
-- pnpm monorepo.
-- Electron main/preload/renderer boundary với `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
-- Typed IPC và narrow preload API.
-- Desktop gọi Worker qua Main Process.
-- Hono Worker local port `8787`.
-- D1 migrations `0001_init_control_plane.sql`, `0002_add_device_credentials.sql`, `0003_enforce_global_device_installation.sql`.
-- Store = tenant/data-isolation boundary; không có branch model trong schema hiện hành.
-- `STORE_DO` + SQLite-backed `StoreDurableObject` cho mỗi Store.
-- Store identity invariant + Store DO schema migration/versioning runner.
-- Device activation bằng one-time token; raw activation token không lưu trong D1.
-- Device secret 256-bit; D1 chỉ lưu credential hash.
-- Device credential rotation khi re-activate cùng Store + installation.
-- Một `installationId` chỉ thuộc tối đa một Store tại một thời điểm; cross-Store activation fail-closed.
-- Worker resolve trusted Store context từ Device; client không tự quyết `storeId`.
-- Client `CommandEnvelope` không còn được khai `storeId/deviceId/actorId` làm authority; server enrich thành trusted command context.
-- Electron tạo installation identity ổn định và lưu device credential bằng async `safeStorage` trong Main Process.
-- Renderer không nhận `deviceSecret`.
-- DeviceGate/ActivationScreen cho activation, reactivation, blocked, unavailable, local-error và ready.
-- Packaged Desktop chỉ gọi backend qua HTTPS; HTTP chỉ dùng loopback ở development.
-- `/api/system/*` diagnostics fail-closed nếu không cấu hình token riêng và yêu cầu Bearer token khi bật.
-- Shared Zod contracts cho health, command envelope, device activation và device context.
-- **29 Worker tests**: 9 Store DO + 9 Device context/activation + 4 Device authorization parser + 3 system diagnostics + 1 cross-Store installation + 3 command-envelope trust tests.
-- GitHub Actions CI chạy frozen install, typecheck, Worker tests và Desktop build trên push/PR.
+```text
+Electron Renderer
+      │ narrow typed IPC; không giữ raw credential
+      ▼
+Electron Main
+      │ encrypted Device credential + encrypted AuthSession credential
+      ▼
+Worker requireDevice
+      │ resolve Store từ D1, không tin client storeId
+      ▼
+Trusted DeviceContext
+      │
+      ▼
+Employee PIN authentication
+      │ PBKDF2-SHA256 + server-side lockout
+      ▼
+AuthSession bound Store + User + Membership + Device
+      │
+      ▼
+requireAuthSession
+      │ derive actor server-side
+      ▼
+Trusted AuthContext
+      │
+      ▼
+Permission Context (M1.3)
+```
 
-Bước nghiệp vụ tiếp theo là **M1.2 - Employee + PIN/AuthGate**, sau đó mới tới permission context và nghiệp vụ bàn.
+### M1.1 - Device + Store
 
-Xem tiến độ và hardening còn mở: [`docs/PROGRESS.md`](docs/PROGRESS.md).
+Đã có:
+
+- one-time activation token; raw activation token không persist,
+- Device secret 256-bit; D1 chỉ lưu hash,
+- reactivation cùng Store + installation rotate Device credential,
+- một `installationId` chỉ thuộc tối đa một Store; cross-Store activation fail-closed,
+- Device middleware kiểm tra Device + Store status,
+- trusted Store context resolve server-side,
+- Electron Main lưu Device credential bằng async `safeStorage`,
+- DeviceGate cho activation/reactivation/blocked/unavailable/local-error/ready,
+- packaged Desktop bắt buộc backend HTTPS; HTTP chỉ cho loopback trong development,
+- privileged IPC chỉ chấp nhận trusted top-level renderer frame,
+- Chromium permission deny-by-default và renderer sandbox/context isolation.
+
+### M1.2 - Employee PIN + AuthGate
+
+Đã có:
+
+- danh sách employee chỉ trong trusted Store của Device,
+- PIN là chuỗi **4-6 chữ số**, giữ leading zero như `0012`,
+- PIN dùng PBKDF2-SHA256 với salt; không plaintext và không raw SHA-256,
+- server-side failure window + escalating lockout theo Store + User + Device,
+- random AuthSession secret; D1 chỉ lưu SHA-256 hash của secret,
+- session bind `Store + User + Membership + Device + PIN credential version`,
+- User/Membership/Role/Device/Store/PIN status được re-check khi authenticate session,
+- Device reactivation revoke AuthSession cũ,
+- PIN credential version đổi làm session cũ mất hiệu lực,
+- `/api/auth/employees`, `/api/auth/pin`, `/api/auth/session`, `/api/auth/logout`,
+- auth response được đánh `Cache-Control: no-store`,
+- Electron Main sở hữu raw `sessionToken`, lưu bằng async `safeStorage`,
+- Renderer chỉ nhận safe session metadata và không nhận `deviceSecret`/`sessionToken`,
+- AuthGate: chọn nhân viên → nhập PIN → lockout countdown → authenticated state → logout,
+- restart Desktop có thể restore phiên còn hợp lệ qua server validation.
 
 ## Nghiệp vụ V1 chính
 
@@ -67,65 +134,19 @@ Xem tiến độ và hardening còn mở: [`docs/PROGRESS.md`](docs/PROGRESS.md)
 - Mobile full operation theo permission ở milestone sau.
 - Báo cáo doanh thu/bàn/sản phẩm/hóa đơn/payment-method theo scope đã chốt.
 
-## Kiến trúc hiện tại
-
-```text
-Windows Desktop POS                  Mobile PWA
-Electron + React                    React + Vite
-        │                                │
-        └──────────────┬─────────────────┘
-                       ▼
-              Cloudflare Worker
-                  Hono API
-                       │
-          ┌────────────┴────────────┐
-          ▼                         ▼
-      D1 control plane        Store Durable Object
- store/user/role/device         1 object / Store
- auth/session/registry          SQLite operational DB
-          │                         │
-          │                tables/pricing/sessions/
-          │                products/bills/payments/
-          │                commands/events/templates
-          └────────────┬────────────┘
-                       ▼
-                 Sync / realtime
-```
-
-Device trust chain hiện tại:
-
-```text
-Electron Renderer
-      │ typed IPC; không có secret
-      ▼
-Electron Main
-      │ installationId + encrypted device credential
-      ▼
-Worker
-      │ authenticate Device bằng D1
-      ▼
-Trusted Store context
-      │
-      ▼
-Employee/Auth/Permission context (M1.2/M1.3)
-```
-
-Chi tiết: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
 ## Cấu trúc repository
 
 ```text
 billiard_management/
 ├── .github/
-│   └── workflows/
-│       └── ci.yml
+│   └── workflows/ci.yml
 ├── apps/
 │   ├── desktop/       # Electron POS
 │   ├── mobile/        # PWA scaffold, deferred
-│   └── worker/        # Hono + Cloudflare Worker + D1 + Store DO
+│   └── worker/        # Hono + Worker + D1 + Store DO
 ├── packages/
-│   ├── contracts/     # Shared commands/API schemas
-│   ├── domain/        # Pure business rules - triển khai dần từ M1
+│   ├── contracts/     # Shared Zod/API/command contracts
+│   ├── domain/        # Pure business rules - triển khai theo vertical slice
 │   └── shared/        # Pure utilities
 ├── docs/
 │   ├── ADR-001-single-store-no-branch.md
@@ -134,14 +155,13 @@ billiard_management/
 │   ├── ARCHITECTURE.md
 │   ├── PRINTING_V1.md
 │   ├── PROGRESS.md
+│   ├── ROADMAP.md
 │   └── SYSTEM_SCOPE_V1.md
 ├── package.json
 └── pnpm-workspace.yaml
 ```
 
 ## Chạy local
-
-Cài dependencies:
 
 ```bash
 pnpm install
@@ -159,13 +179,13 @@ Worker local:
 http://localhost:8787
 ```
 
-Basic health:
+Health:
 
 ```bash
 curl http://localhost:8787/api/health
 ```
 
-System diagnostics là surface riêng. Nếu cần dùng local, tạo:
+System diagnostics là surface riêng. Nếu cần dùng local:
 
 ```bash
 cp apps/worker/.dev.vars.example apps/worker/.dev.vars
@@ -173,14 +193,14 @@ TOKEN=$(openssl rand -hex 32)
 printf 'SYSTEM_DIAGNOSTICS_TOKEN=%s\n' "$TOKEN" > apps/worker/.dev.vars
 ```
 
-Sau khi restart Worker:
+Restart Worker rồi gọi:
 
 ```bash
 curl http://localhost:8787/api/system/db-health \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Nếu không cấu hình token đủ mạnh, `/api/system/*` trả 404 fail-closed.
+Nếu token chưa cấu hình đủ mạnh, `/api/system/*` trả 404 fail-closed.
 
 Terminal 2 - Desktop:
 
@@ -188,17 +208,38 @@ Terminal 2 - Desktop:
 pnpm dev:desktop
 ```
 
-Desktop dev dùng `MAIN_VITE_API_BASE_URL=http://localhost:8787` từ `apps/desktop/.env.example`. Packaged build phải dùng backend HTTPS; HTTP chỉ dành cho loopback trong development. Script Desktop tự chạy `install-electron --no` trước `dev/start` để fresh clone không thiếu Electron binary.
+Desktop dev dùng `MAIN_VITE_API_BASE_URL=http://localhost:8787`. Packaged build phải dùng backend HTTPS.
+
+## D1 migrations
+
+Control-plane migrations hiện có:
+
+```text
+0001_init_control_plane.sql
+0002_add_device_credentials.sql
+0003_enforce_global_device_installation.sql
+0004_add_employee_pin_credentials.sql
+```
+
+Reset/apply local:
+
+```bash
+rm -rf apps/worker/.wrangler/state
+pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane --local
+pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
+```
+
+Không apply migration remote như một thao tác mặc định. Remote/pilot phải review migrations, secrets, backup/recovery và observability trước.
 
 ## Quality gates
 
-Chạy toàn bộ gate giống CI từ root:
+Gate chuẩn từ root:
 
 ```bash
 pnpm run ci
 ```
 
-Các gate riêng:
+Hiện gate gồm:
 
 ```bash
 pnpm typecheck:contracts
@@ -208,81 +249,47 @@ pnpm test:worker
 pnpm build:desktop
 ```
 
-Nếu thay đổi `apps/worker/wrangler.jsonc`, tạo lại Cloudflare bindings trước khi typecheck:
+Nếu thay `apps/worker/wrangler.jsonc`:
 
 ```bash
 pnpm --dir apps/worker run cf-typegen
 ```
 
-## D1 local development
+Worker suite hiện cover Store DO, Device activation/context/isolation, system diagnostics, command trust boundary, PIN KDF, AuthSession credential, auth contracts/service/routes, lockout, session invalidation và Device reactivation session revocation.
 
-Control plane hiện có migrations `0001`, `0002`, `0003`.
+**CI debt còn mở:** lint/format gate chưa được chuẩn hóa toàn monorepo; Desktop chưa có automated Electron integration/security tests; Mobile chưa tham gia root CI vì vẫn deferred scaffold.
 
-Reset và apply D1 local từ đầu:
+## Nguyên tắc không phá vỡ
 
-```bash
-rm -rf apps/worker/.wrangler/state
-pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane --local
-pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
-```
-
-Remote migration/deploy chưa phải gate hiện tại. Trước remote/pilot phải review secret/config deployment, activation issuance, migrations của môi trường đích và packaged Windows smoke.
-
-## Worker tests
-
-```bash
-pnpm --dir apps/worker run typecheck
-pnpm --dir apps/worker run typecheck:test
-pnpm --dir apps/worker test
-```
-
-Coverage hành vi hiện tại gồm:
-
-- Store DO identity/schema/read-write/transaction/isolation,
-- activation token one-time + expiry,
-- device secret chỉ lưu hash,
-- wrong/revoked credential,
-- inactive Store,
-- credential rotation,
-- spoofed client Store ID không thay đổi trusted Store context,
-- Device authorization parser: scheme, UUID, secret format và separator validation,
-- protected system diagnostics,
-- cross-Store reuse của cùng installation bị từ chối,
-- client command envelope không thể tự khai Store/Device/Actor authority.
-
-## Nguyên tắc kiến trúc
-
-- Store = tenant/data isolation boundary.
-- V1 không có branch.
-- D1 là control plane.
-- Store DO là operational single-writer boundary.
-- Renderer không truy cập Node/Electron trực tiếp và không giữ device secret.
-- Network/secure storage/printing/updater nằm ở Main Process.
-- Store/Auth/Permission context phải resolve và enforce server-side.
-- Client command identity không phải security authority; server enrich Store/Device/Actor.
-- `issuedAt` của client không phải authoritative clock cho tính giờ/tính tiền online.
-- Không lưu raw session token.
-- PIN/rate-limit/lockout thiết kế cùng AuthGate.
-- Loại bàn và pricing là dữ liệu cấu hình, không hard-code.
-- Timer UI không phải nguồn sự thật của thời gian chơi.
-- Money không dùng floating-point.
-- Giá lịch sử không đổi theo cấu hình mới.
-- Mutation nghiệp vụ đi qua command semantics.
-- Offline persistence đến sau online vertical slice.
-- Print template chỉ dùng allowlisted placeholder/block, không arbitrary script/code.
+1. Store = tenant/data-isolation boundary; V1 không có branch.
+2. D1 = control plane; Store DO = operational single-writer boundary.
+3. Renderer không giữ Device/session secret.
+4. Device/Store/Auth/Permission context resolve và enforce server-side.
+5. Client `storeId/deviceId/actorId` không phải security authority.
+6. Client `issuedAt` không phải authoritative online clock.
+7. PIN không plaintext, không fast hash; lockout nằm server-side.
+8. Auth responses không được cache.
+9. Money không dùng floating-point.
+10. Timer UI không phải nguồn sự thật.
+11. Giá lịch sử không đổi theo config mới.
+12. Mutation nghiệp vụ đi qua command semantics + idempotency policy.
+13. Offline đến sau online vertical slice.
+14. Mobile dùng chung contracts/commands/server rules.
+15. Production/pilot schema chỉ đổi qua reviewed migration.
 
 ## Bước tiếp theo
 
-Thứ tự M1 hiện tại:
+M1 tiếp tục theo thứ tự:
 
-1. ✅ Device identity + Store execution context.
-2. ⏭ Employee + PIN/AuthGate.
-3. Permission context.
-4. Table type + Billiard table.
-5. Open playing session + server-time semantics.
-6. Product catalog + add item.
-7. Bill.
-8. Cash / bank-transfer payment.
-9. Close session/bill và trả bàn về `available`.
+1. ✅ Device identity + Store context.
+2. ✅ Employee PIN + AuthGate.
+3. ⏭ **Permission Context**.
+4. TableType + BilliardTable.
+5. Pricing foundation + Open TableSession.
+6. Server-time timer semantics.
+7. Product catalog + add item với price snapshot.
+8. Bill lifecycle.
+9. Cash / bank-transfer payment.
+10. Finalize bill/session → bàn trở về `available`.
 
-Trước remote deployment phải hoàn tất các hardening còn mở trong [`docs/PROGRESS.md`](docs/PROGRESS.md).
+Không bắt đầu UI nghiệp vụ lớn trước khi M1.3 server-side authorization hoàn chỉnh. Xem [`docs/ROADMAP.md`](docs/ROADMAP.md) cho gate và thứ tự triển khai chi tiết.
