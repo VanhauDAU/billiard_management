@@ -26,20 +26,23 @@ Hiện hệ thống đã có:
 - Typed IPC và narrow preload API.
 - Desktop gọi Worker qua Main Process.
 - Hono Worker local port `8787`.
-- D1 control-plane migration `0001_init_control_plane.sql`.
-- Device credential/activation migration `0002_add_device_credentials.sql`.
+- D1 migrations `0001_init_control_plane.sql`, `0002_add_device_credentials.sql`, `0003_enforce_global_device_installation.sql`.
 - Store = tenant/data-isolation boundary; không có branch model trong schema hiện hành.
 - `STORE_DO` + SQLite-backed `StoreDurableObject` cho mỗi Store.
 - Store identity invariant + Store DO schema migration/versioning runner.
 - Device activation bằng one-time token; raw activation token không lưu trong D1.
 - Device secret 256-bit; D1 chỉ lưu credential hash.
 - Device credential rotation khi re-activate cùng Store + installation.
+- Một `installationId` chỉ thuộc tối đa một Store tại một thời điểm; cross-Store activation fail-closed.
 - Worker resolve trusted Store context từ Device; client không tự quyết `storeId`.
+- Client `CommandEnvelope` không còn được khai `storeId/deviceId/actorId` làm authority; server enrich thành trusted command context.
 - Electron tạo installation identity ổn định và lưu device credential bằng async `safeStorage` trong Main Process.
 - Renderer không nhận `deviceSecret`.
 - DeviceGate/ActivationScreen cho activation, reactivation, blocked, unavailable, local-error và ready.
-- Shared Zod contracts cho health, `CommandEnvelope`, device activation và device context.
-- 22 Worker tests: 9 Store DO + 9 Device context + 4 Device authorization parser.
+- Packaged Desktop chỉ gọi backend qua HTTPS; HTTP chỉ dùng loopback ở development.
+- `/api/system/*` diagnostics fail-closed nếu không cấu hình token riêng và yêu cầu Bearer token khi bật.
+- Shared Zod contracts cho health, command envelope, device activation và device context.
+- **29 Worker tests**: 9 Store DO + 9 Device context/activation + 4 Device authorization parser + 3 system diagnostics + 1 cross-Store installation + 3 command-envelope trust tests.
 - GitHub Actions CI chạy frozen install, typecheck, Worker tests và Desktop build trên push/PR.
 
 Bước nghiệp vụ tiếp theo là **M1.2 - Employee + PIN/AuthGate**, sau đó mới tới permission context và nghiệp vụ bàn.
@@ -102,6 +105,9 @@ Worker
       │ authenticate Device bằng D1
       ▼
 Trusted Store context
+      │
+      ▼
+Employee/Auth/Permission context (M1.2/M1.3)
 ```
 
 Chi tiết: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
@@ -115,14 +121,16 @@ billiard_management/
 │       └── ci.yml
 ├── apps/
 │   ├── desktop/       # Electron POS
-│   ├── mobile/        # PWA scaffold
+│   ├── mobile/        # PWA scaffold, deferred
 │   └── worker/        # Hono + Cloudflare Worker + D1 + Store DO
 ├── packages/
-│   ├── contracts/     # Shared commands/events/API schemas
+│   ├── contracts/     # Shared commands/API schemas
 │   ├── domain/        # Pure business rules - triển khai dần từ M1
 │   └── shared/        # Pure utilities
 ├── docs/
 │   ├── ADR-001-single-store-no-branch.md
+│   ├── ADR-002-command-trust-boundary.md
+│   ├── ADR-003-device-installation-single-store.md
 │   ├── ARCHITECTURE.md
 │   ├── PRINTING_V1.md
 │   ├── PROGRESS.md
@@ -151,12 +159,28 @@ Worker local:
 http://localhost:8787
 ```
 
-Kiểm tra API:
+Basic health:
 
 ```bash
 curl http://localhost:8787/api/health
-curl http://localhost:8787/api/system/db-health
 ```
+
+System diagnostics là surface riêng. Nếu cần dùng local, tạo:
+
+```bash
+cp apps/worker/.dev.vars.example apps/worker/.dev.vars
+TOKEN=$(openssl rand -hex 32)
+printf 'SYSTEM_DIAGNOSTICS_TOKEN=%s\n' "$TOKEN" > apps/worker/.dev.vars
+```
+
+Sau khi restart Worker:
+
+```bash
+curl http://localhost:8787/api/system/db-health \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Nếu không cấu hình token đủ mạnh, `/api/system/*` trả 404 fail-closed.
 
 Terminal 2 - Desktop:
 
@@ -192,7 +216,7 @@ pnpm --dir apps/worker run cf-typegen
 
 ## D1 local development
 
-Control plane hiện có migration `0001` và `0002`.
+Control plane hiện có migrations `0001`, `0002`, `0003`.
 
 Reset và apply D1 local từ đầu:
 
@@ -202,7 +226,7 @@ pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane
 pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
 ```
 
-Remote migration/deploy chưa phải gate hiện tại. Trước remote/pilot phải review system diagnostics, secret transport, activation issuance và migrations của môi trường đích.
+Remote migration/deploy chưa phải gate hiện tại. Trước remote/pilot phải review secret/config deployment, activation issuance, migrations của môi trường đích và packaged Windows smoke.
 
 ## Worker tests
 
@@ -221,7 +245,10 @@ Coverage hành vi hiện tại gồm:
 - inactive Store,
 - credential rotation,
 - spoofed client Store ID không thay đổi trusted Store context,
-- Device authorization parser: scheme, UUID, secret format và separator validation.
+- Device authorization parser: scheme, UUID, secret format và separator validation,
+- protected system diagnostics,
+- cross-Store reuse của cùng installation bị từ chối,
+- client command envelope không thể tự khai Store/Device/Actor authority.
 
 ## Nguyên tắc kiến trúc
 
@@ -232,6 +259,8 @@ Coverage hành vi hiện tại gồm:
 - Renderer không truy cập Node/Electron trực tiếp và không giữ device secret.
 - Network/secure storage/printing/updater nằm ở Main Process.
 - Store/Auth/Permission context phải resolve và enforce server-side.
+- Client command identity không phải security authority; server enrich Store/Device/Actor.
+- `issuedAt` của client không phải authoritative clock cho tính giờ/tính tiền online.
 - Không lưu raw session token.
 - PIN/rate-limit/lockout thiết kế cùng AuthGate.
 - Loại bàn và pricing là dữ liệu cấu hình, không hard-code.
@@ -256,4 +285,4 @@ Thứ tự M1 hiện tại:
 8. Cash / bank-transfer payment.
 9. Close session/bill và trả bàn về `available`.
 
-Trước remote deployment phải hoàn tất các hardening được ghi trong [`docs/PROGRESS.md`](docs/PROGRESS.md).
+Trước remote deployment phải hoàn tất các hardening còn mở trong [`docs/PROGRESS.md`](docs/PROGRESS.md).
