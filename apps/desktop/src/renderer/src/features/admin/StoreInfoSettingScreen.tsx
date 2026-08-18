@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import localProvincesData from '../../assets/vietnam_provinces_v2.json'
 
 interface WardItem {
@@ -18,20 +19,47 @@ interface StoreInfoSettingScreenProps {
   onBack: () => void
 }
 
+const STORAGE_KEY = 'billiard_store_settings_v1'
+
 export function StoreInfoSettingScreen({ onBack }: StoreInfoSettingScreenProps): React.JSX.Element {
-  const [storeCode] = useState('107493')
-  const [storeName, setStoreName] = useState('Vanhau1410rr')
-  const [phone, setPhone] = useState('0777464347')
-  const [currency, setCurrency] = useState('VND')
-  const [address, setAddress] = useState('')
+  // Load initial state from localStorage or use defaults
+  const getInitialState = () => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    } catch (e) {
+      console.warn('Could not read store settings from localStorage', e)
+    }
+    return {
+      storeCode: '107493',
+      storeName: 'Vanhau1410rr',
+      phone: '0777464347',
+      currency: 'VND',
+      address: '',
+      selectedProvinceCode: '',
+      selectedWardCode: ''
+    }
+  }
+
+  const initialData = getInitialState()
+
+  const [storeCode] = useState<string>(initialData.storeCode || '107493')
+  const [storeName, setStoreName] = useState<string>(initialData.storeName || 'Vanhau1410rr')
+  const [phone, setPhone] = useState<string>(initialData.phone || '0777464347')
+  const [currency, setCurrency] = useState<string>(initialData.currency || 'VND')
+  const [address, setAddress] = useState<string>(initialData.address || '')
 
   // Provinces & Wards state
   const [provincesList, setProvincesList] = useState<ProvinceItem[]>(localProvincesData as ProvinceItem[])
-  const [selectedProvinceCode, setSelectedProvinceCode] = useState<number | ''>('')
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState<number | ''>(
+    initialData.selectedProvinceCode ? Number(initialData.selectedProvinceCode) : ''
+  )
   const [wardsList, setWardsList] = useState<WardItem[]>([])
-  const [selectedWardCode, setSelectedWardCode] = useState<number | ''>('')
-
-  const [savedSuccess, setSavedSuccess] = useState(false)
+  const [selectedWardCode, setSelectedWardCode] = useState<number | ''>(
+    initialData.selectedWardCode ? Number(initialData.selectedWardCode) : ''
+  )
 
   // Try to sync latest live data from online API if available
   useEffect(() => {
@@ -70,12 +98,12 @@ export function StoreInfoSettingScreen({ onBack }: StoreInfoSettingScreenProps):
     } else {
       setWardsList([])
     }
-    setSelectedWardCode('')
   }, [selectedProvinceCode, provincesList])
 
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value ? Number(e.target.value) : ''
     setSelectedProvinceCode(val)
+    setSelectedWardCode('')
   }
 
   const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -85,8 +113,26 @@ export function StoreInfoSettingScreen({ onBack }: StoreInfoSettingScreenProps):
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
-    setSavedSuccess(true)
-    setTimeout(() => setSavedSuccess(false), 3500)
+
+    // Persist to localStorage
+    try {
+      const dataToSave = {
+        storeCode,
+        storeName,
+        phone,
+        currency,
+        address,
+        selectedProvinceCode,
+        selectedWardCode
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
+    } catch (err) {
+      console.error('Failed to save to localStorage:', err)
+    }
+
+    toast.success('Đã lưu thành công thông tin cửa hàng!', {
+      description: `Mã quán: ${storeCode} - ${storeName}`
+    })
   }
 
   return (
@@ -99,13 +145,6 @@ export function StoreInfoSettingScreen({ onBack }: StoreInfoSettingScreenProps):
         </button>
         <h1 className="store-info-main-title">Thông tin cửa hàng</h1>
       </div>
-
-      {savedSuccess && (
-        <div className="alert-box alert-success" style={{ marginBottom: '20px' }}>
-          <span>✅</span>
-          <span>Đã lưu thành công thông tin cửa hàng!</span>
-        </div>
-      )}
 
       {/* 2-Column Layout */}
       <form onSubmit={handleSave} className="store-info-content-grid">

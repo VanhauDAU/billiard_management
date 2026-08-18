@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Toaster } from 'sonner'
 import type { DesktopAuthState } from '../../shared/auth-api'
 import { LoginPage } from './features/auth/LoginPage'
 import { DashboardLayout } from './features/dashboard/DashboardLayout'
@@ -45,15 +46,20 @@ function App(): React.JSX.Element {
     )
   }
 
-  if (authState && authState.status === 'authenticated') {
-    const role = authState.user?.roleCode
-    if (role === 'staff' || role === 'cashier') {
-      return <StaffPosLayout authState={authState} onLogout={handleLogout} />
-    }
-    return <DashboardLayout authState={authState} onLogout={handleLogout} />
-  }
-
-  return <LoginPage onLoginSuccess={setAuthState} />
+  return (
+    <>
+      <Toaster position="top-right" richColors closeButton duration={3500} />
+      {authState && authState.status === 'authenticated' ? (
+        authState.user?.roleCode === 'staff' || authState.user?.roleCode === 'cashier' ? (
+          <StaffPosLayout authState={authState} onLogout={handleLogout} />
+        ) : (
+          <DashboardLayout authState={authState} onLogout={handleLogout} />
+        )
+      ) : (
+        <LoginPage onLoginSuccess={setAuthState} />
+      )}
+    </>
+  )
 }
 
 export default App

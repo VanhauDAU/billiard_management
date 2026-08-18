@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 import { StoreInfoSettingScreen } from './StoreInfoSettingScreen'
 
 type SettingModalKey =
@@ -28,17 +29,10 @@ export function StoreSettingsScreen(): React.JSX.Element {
   const [accountNumber, setAccountNumber] = useState('999988886666')
   const [accountName, setAccountName] = useState('LE VAN HAU')
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3000)
-  }
-
   const handleSaveModal = (e: React.FormEvent) => {
     e.preventDefault()
     setActiveModal(null)
-    showToast('Đã lưu thành công cấu hình thiết lập!')
+    toast.success('Đã lưu thành công cấu hình thiết lập!')
   }
 
   if (currentSubView === 'store_info') {
@@ -54,13 +48,6 @@ export function StoreSettingsScreen(): React.JSX.Element {
           Tùy chỉnh toàn bộ thông tin cửa hàng, phương thức thanh toán, máy in và quy chuẩn vận hành
         </p>
       </div>
-
-      {toastMessage && (
-        <div className="alert-box alert-success" style={{ animation: 'dropdownFadeIn 0.2s ease' }}>
-          <span>✅</span>
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* Section 1: Thiết lập thông tin */}
       <div className="settings-section-card">

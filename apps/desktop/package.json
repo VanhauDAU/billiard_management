@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@billiards/contracts": "workspace:*",
-    "@electron-toolkit/utils": "^4.0.0"
+    "@electron-toolkit/utils": "^4.0.0",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
