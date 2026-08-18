@@ -2,6 +2,9 @@ import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+const ALLOWED_EXTERNAL_ORIGINS =
+  new Set<string>()
+
 function getPackagedRendererUrl(): URL {
   return pathToFileURL(
     join(
@@ -53,7 +56,12 @@ export function isAllowedExternalUrl(
   try {
     const url = new URL(rawUrl)
 
-    return url.protocol === 'https:'
+    return (
+      url.protocol === 'https:' &&
+      ALLOWED_EXTERNAL_ORIGINS.has(
+        url.origin
+      )
+    )
   } catch {
     return false
   }
