@@ -97,10 +97,17 @@ export async function getDesktopAuthState(): Promise<DesktopAuthState> {
     }
 
     if (hasErrorMessage(error, 'invalid_auth_session_credential_file')) {
-      return {
-        status: 'local_error',
+      /*
+       * A corrupted local session credential
+       * cannot be trusted or recovered.
+       *
+       * Delete it and require employee PIN
+       * authentication again.
+       */
+      await deleteAuthSessionCredential()
 
-        reason: 'invalid_local_session_credential'
+      return {
+        status: 'signed_out'
       }
     }
 

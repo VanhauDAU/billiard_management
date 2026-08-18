@@ -3,7 +3,9 @@ import {
   useEffect,
   useState
 } from 'react'
-
+import {
+  AuthGate
+} from '../auth/AuthGate'
 import type {
   DesktopDeviceState
 } from '../../../../shared/device-api'
@@ -172,75 +174,17 @@ export function DeviceGate(): React.JSX.Element {
   }
 
   return (
-    <main className="device-page">
-      <section className="device-card device-status-card">
-        <p className="device-success-label">
-          Thiết bị đã sẵn sàng
-        </p>
-
-        <h1>
-          {state.context.store.name}
-        </h1>
-
-        <p>
-          Máy POS đã được xác thực thành công.
-        </p>
-
-        <div className="device-context-grid">
-          <ContextItem
-            label="Thiết bị"
-            value={
-              state.context.device.name
-            }
-          />
-
-          <ContextItem
-            label="Nền tảng"
-            value={
-              state.context.device.platform
-            }
-          />
-
-          <ContextItem
-            label="Cửa hàng"
-            value={
-              state.context.store.name
-            }
-          />
-
-          <ContextItem
-            label="Tiền tệ"
-            value={
-              state.context.store.currency
-            }
-          />
-        </div>
-
-        <div className="device-next-step">
-          Thiết bị đã sẵn sàng.
-          Bước tiếp theo là đăng nhập nhân viên bằng PIN.
-        </div>
-      </section>
-    </main>
-  )
+  <AuthGate
+    deviceContext={
+      state.context
+    }
+    onDeviceNotReady={
+      loadState
+    }
+  />
+)
 }
 
-interface ContextItemProps {
-  label: string
-  value: string
-}
-
-function ContextItem({
-  label,
-  value
-}: ContextItemProps): React.JSX.Element {
-  return (
-    <div>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  )
-}
 
 interface StatusCardProps {
   eyebrow?: string
