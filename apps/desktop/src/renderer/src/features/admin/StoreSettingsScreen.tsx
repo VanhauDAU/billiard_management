@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { toast } from 'sonner'
 import { StoreInfoSettingScreen } from './StoreInfoSettingScreen'
 import { ZoneTableSettingsScreen } from './ZoneTableSettingsScreen'
+import { AccountSettingsScreen } from './AccountSettingsScreen'
 
 type SettingModalKey =
-  | 'account'
   | 'pricing'
   | 'printer'
   | 'payment'
@@ -15,7 +15,7 @@ type SettingModalKey =
   | null
 
 export function StoreSettingsScreen(): React.JSX.Element {
-  const [currentSubView, setCurrentSubView] = useState<'hub' | 'store_info' | 'tables_zone'>('hub')
+  const [currentSubView, setCurrentSubView] = useState<'hub' | 'store_info' | 'account' | 'tables_zone'>('hub')
   const [activeModal, setActiveModal] = useState<SettingModalKey>(null)
 
   // Printer form state
@@ -37,6 +37,10 @@ export function StoreSettingsScreen(): React.JSX.Element {
 
   if (currentSubView === 'store_info') {
     return <StoreInfoSettingScreen onBack={() => setCurrentSubView('hub')} />
+  }
+
+  if (currentSubView === 'account') {
+    return <AccountSettingsScreen onBack={() => setCurrentSubView('hub')} />
   }
 
   if (currentSubView === 'tables_zone') {
@@ -67,7 +71,7 @@ export function StoreSettingsScreen(): React.JSX.Element {
           </div>
 
           {/* Tile 2: Thiết lập tài khoản */}
-          <div className="settings-tile-item" onClick={() => setActiveModal('account')}>
+          <div className="settings-tile-item" onClick={() => setCurrentSubView('account')}>
             <div className="tile-icon-box bg-purple-50">👤</div>
             <div className="tile-content">
               <strong className="tile-title">Thiết lập tài khoản</strong>
@@ -329,8 +333,7 @@ export function StoreSettingsScreen(): React.JSX.Element {
       )}
 
       {/* 5. Generic / Placeholder Modals */}
-      {(activeModal === 'account' ||
-        activeModal === 'pricing' ||
+      {(activeModal === 'pricing' ||
         activeModal === 'sales_mode' ||
         activeModal === 'devices' ||
         activeModal === 'qr_order') && (
