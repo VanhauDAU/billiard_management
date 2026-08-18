@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
 import { toast } from 'sonner'
 import { StoreInfoSettingScreen } from './StoreInfoSettingScreen'
+import { ZoneTableSettingsScreen } from './ZoneTableSettingsScreen'
 
 type SettingModalKey =
   | 'account'
-  | 'tables_zone'
   | 'pricing'
   | 'printer'
   | 'payment'
@@ -15,7 +15,7 @@ type SettingModalKey =
   | null
 
 export function StoreSettingsScreen(): React.JSX.Element {
-  const [currentSubView, setCurrentSubView] = useState<'hub' | 'store_info'>('hub')
+  const [currentSubView, setCurrentSubView] = useState<'hub' | 'store_info' | 'tables_zone'>('hub')
   const [activeModal, setActiveModal] = useState<SettingModalKey>(null)
 
   // Printer form state
@@ -37,6 +37,10 @@ export function StoreSettingsScreen(): React.JSX.Element {
 
   if (currentSubView === 'store_info') {
     return <StoreInfoSettingScreen onBack={() => setCurrentSubView('hub')} />
+  }
+
+  if (currentSubView === 'tables_zone') {
+    return <ZoneTableSettingsScreen onBack={() => setCurrentSubView('hub')} />
   }
 
   return (
@@ -78,7 +82,7 @@ export function StoreSettingsScreen(): React.JSX.Element {
         <h3 className="settings-section-title">Thiết lập chức năng</h3>
         <div className="settings-tiles-grid">
           {/* Tile 3: Thiết lập khu vực & Bàn */}
-          <div className="settings-tile-item" onClick={() => setActiveModal('tables_zone')}>
+          <div className="settings-tile-item" onClick={() => setCurrentSubView('tables_zone')}>
             <div className="tile-icon-box bg-blue-50">🎱</div>
             <div className="tile-content">
               <strong className="tile-title">Thiết lập khu vực & Bàn</strong>
@@ -326,7 +330,6 @@ export function StoreSettingsScreen(): React.JSX.Element {
 
       {/* 5. Generic / Placeholder Modals */}
       {(activeModal === 'account' ||
-        activeModal === 'tables_zone' ||
         activeModal === 'pricing' ||
         activeModal === 'sales_mode' ||
         activeModal === 'devices' ||
