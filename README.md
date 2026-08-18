@@ -17,30 +17,34 @@ Scope nghiệp vụ chi tiết: [`docs/SYSTEM_SCOPE_V1.md`](docs/SYSTEM_SCOPE_V1
 
 ## Trạng thái hiện tại
 
-**M0 - Foundation đã hoàn thành.** Dự án bắt đầu **M1 - Windows POS online**.
+**M0 - Foundation đã hoàn thành. M1.1 - Device identity + Store execution context đã hoàn thành theo local/functional gate.**
 
-Foundation hiện có:
+Hiện hệ thống đã có:
 
 - pnpm monorepo.
-- Electron main/preload/renderer boundary.
-- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
-- Typed IPC.
-- Desktop gọi Worker qua main process.
+- Electron main/preload/renderer boundary với `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
+- Typed IPC và narrow preload API.
+- Desktop gọi Worker qua Main Process.
 - Hono Worker local port `8787`.
-- D1 database + binding `DB`.
-- Store-based migration `0001_init_control_plane.sql`.
-- Store = tenant/data-isolation boundary; không còn branch model trong schema hiện hành.
-- `STORE_DO` + `StoreDurableObject` SQLite.
-- Store identity invariant và health endpoint cho DO.
-- Store DO schema migration/versioning runner.
-- Automated Store DO tests cho read/write, transaction commit/rollback, Store isolation, identity lock và schema migration guards.
-- Shared contracts thật cho API health và `CommandEnvelope`.
-- Typecheck riêng cho contracts, Worker production code và Worker tests.
-- GitHub Actions CI chạy install frozen-lockfile, typecheck, tests và Desktop build trên push/PR.
+- D1 control-plane migration `0001_init_control_plane.sql`.
+- Device credential/activation migration `0002_add_device_credentials.sql`.
+- Store = tenant/data-isolation boundary; không có branch model trong schema hiện hành.
+- `STORE_DO` + SQLite-backed `StoreDurableObject` cho mỗi Store.
+- Store identity invariant + Store DO schema migration/versioning runner.
+- Device activation bằng one-time token; raw activation token không lưu trong D1.
+- Device secret 256-bit; D1 chỉ lưu credential hash.
+- Device credential rotation khi re-activate cùng Store + installation.
+- Worker resolve trusted Store context từ Device; client không tự quyết `storeId`.
+- Electron tạo installation identity ổn định và lưu device credential bằng async `safeStorage` trong Main Process.
+- Renderer không nhận `deviceSecret`.
+- DeviceGate/ActivationScreen cho các trạng thái activation, reactivation, blocked, unavailable và ready.
+- Shared Zod contracts cho health, `CommandEnvelope`, device activation và device context.
+- 18 Worker tests: 9 Store DO + 9 Device context.
+- GitHub Actions CI chạy frozen install, typecheck, Worker tests và Desktop build trên push/PR.
 
-M1 bắt đầu từ **Device identity + Store execution context**, sau đó mới triển khai Employee + PIN, permission context và nghiệp vụ bàn.
+Bước nghiệp vụ tiếp theo là **M1.2 - Employee + PIN/AuthGate**, sau đó mới tới permission context và nghiệp vụ bàn.
 
-Xem tiến độ: [`docs/PROGRESS.md`](docs/PROGRESS.md).
+Xem tiến độ và hardening còn mở: [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Nghiệp vụ V1 chính
 
@@ -83,6 +87,21 @@ Electron + React                    React + Vite
           └────────────┬────────────┘
                        ▼
                  Sync / realtime
+```
+
+Device trust chain hiện tại:
+
+```text
+Electron Renderer
+      │ typed IPC; không có secret
+      ▼
+Electron Main
+      │ installationId + encrypted device credential
+      ▼
+Worker
+      │ authenticate Device bằng D1
+      ▼
+Trusted Store context
 ```
 
 Chi tiết: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
@@ -145,6 +164,8 @@ Terminal 2 - Desktop:
 pnpm dev:desktop
 ```
 
+Desktop dev dùng `MAIN_VITE_API_BASE_URL=http://localhost:8787` từ `apps/desktop/.env.example`. Packaged build phải dùng backend HTTPS; HTTP chỉ dành cho loopback trong development.
+
 ## Quality gates
 
 Chạy toàn bộ gate giống CI từ root:
@@ -171,7 +192,7 @@ pnpm --dir apps/worker run cf-typegen
 
 ## D1 local development
 
-Migration `0001` hiện là Store-based control-plane schema.
+Control plane hiện có migration `0001` và `0002`.
 
 Reset và apply D1 local từ đầu:
 
@@ -181,9 +202,9 @@ pnpm --dir apps/worker exec wrangler d1 migrations apply billiards-control-plane
 pnpm --dir apps/worker exec wrangler d1 execute billiards-control-plane --local --command "PRAGMA foreign_key_check;"
 ```
 
-Remote migration/deploy không phải gate của M0; chỉ thực hiện khi chuẩn bị môi trường remote/pilot và migration đã được review cho lần deploy đó.
+Remote migration/deploy chưa phải gate hiện tại. Trước remote/pilot phải review system diagnostics, secret transport, activation issuance và migrations của môi trường đích.
 
-## Store Durable Object tests
+## Worker tests
 
 ```bash
 pnpm --dir apps/worker run typecheck
@@ -191,17 +212,15 @@ pnpm --dir apps/worker run typecheck:test
 pnpm --dir apps/worker test
 ```
 
-Store DO foundation hiện kiểm tra tự động:
+Coverage hành vi hiện tại gồm:
 
-- initialize/persist Store identity,
-- SQLite read/write,
-- transaction commit,
-- transaction rollback,
-- isolation giữa hai Store,
-- identity lock,
-- fresh schema version,
-- migration idempotency,
-- reject schema mới hơn code đang chạy.
+- Store DO identity/schema/read-write/transaction/isolation,
+- activation token one-time + expiry,
+- device secret chỉ lưu hash,
+- wrong/revoked credential,
+- inactive Store,
+- credential rotation,
+- spoofed client Store ID không thay đổi trusted Store context.
 
 ## Nguyên tắc kiến trúc
 
@@ -209,24 +228,25 @@ Store DO foundation hiện kiểm tra tự động:
 - V1 không có branch.
 - D1 là control plane.
 - Store DO là operational single-writer boundary.
-- Renderer không truy cập Node/Electron trực tiếp.
-- Permission enforce server-side.
+- Renderer không truy cập Node/Electron trực tiếp và không giữ device secret.
+- Network/secure storage/printing/updater nằm ở Main Process.
+- Store/Auth/Permission context phải resolve và enforce server-side.
 - Không lưu raw session token.
 - PIN/rate-limit/lockout thiết kế cùng AuthGate.
 - Loại bàn và pricing là dữ liệu cấu hình, không hard-code.
 - Timer UI không phải nguồn sự thật của thời gian chơi.
 - Money không dùng floating-point.
 - Giá lịch sử không đổi theo cấu hình mới.
-- Mutation nghiệp vụ từ M1 đi qua command semantics.
+- Mutation nghiệp vụ đi qua command semantics.
 - Offline persistence đến sau online vertical slice.
 - Print template chỉ dùng allowlisted placeholder/block, không arbitrary script/code.
 
 ## Bước tiếp theo
 
-Bắt đầu **M1 - Windows POS online vertical slice** theo thứ tự:
+Thứ tự M1 hiện tại:
 
-1. Device identity + Store execution context.
-2. Employee + PIN authentication.
+1. ✅ Device identity + Store execution context.
+2. ⏭ Employee + PIN/AuthGate.
 3. Permission context.
 4. Table type + Billiard table.
 5. Open playing session + server-time semantics.
@@ -235,4 +255,4 @@ Bắt đầu **M1 - Windows POS online vertical slice** theo thứ tự:
 8. Cash / bank-transfer payment.
 9. Close session/bill và trả bàn về `available`.
 
-M1 dùng shared contracts/command semantics ngay từ đầu để giữ đường tiến hóa tới Mobile và offline/sync sau này.
+Trước remote deployment phải hoàn tất các hardening được ghi trong [`docs/PROGRESS.md`](docs/PROGRESS.md).
