@@ -2,7 +2,10 @@ import { Hono } from "hono";
 
 import { PinLoginRequestSchema } from "@billiards/contracts";
 
-import type { LogoutResponse } from "@billiards/contracts";
+import type {
+  LogoutResponse,
+  PermissionContextResponse
+} from "@billiards/contracts";
 
 import type { AppEnv } from "../types/app-env";
 
@@ -15,7 +18,9 @@ import {
   listEmployeesForDevice,
   revokeAuthSession,
 } from "../services/auth-service";
-
+import {
+  resolvePermissionContext,
+} from "../services/permission-service";
 export const authRoutes = new Hono<AppEnv>();
 
 // Authentication responses can contain employee identity metadata or,
@@ -163,7 +168,70 @@ authRoutes.post("/pin", async (c) => {
 authRoutes.get("/session", requireAuthSession, (c) => {
   return c.json(c.get("authSession"), 200);
 });
+// =========================================================
+// PERMISSION CONTEXT
+//
+// Device + AuthSession are already trusted.
+//
+// The returned permission list is useful for client UX.
+// It is NOT authorization authority.
+//
+// Every business mutation must still enforce its required
+// capability server-side with requirePermission(...).
+// =========================================================
 
+authRoutes.get(
+  "/permissions",
+  requireAuthSession,
+  async (c) => {
+    const authContext =
+      c.get("authContext");
+
+    const result =
+      await resolvePermissionContext(
+        c.env.DB,
+        authContext,
+      );
+
+    if (!result.ok) {
+      if (
+        result.error ===
+        "actor_inactive"
+      ) {
+        return c.json(
+          {
+            ok: false,
+            error:
+              "invalid_auth_session",
+          },
+          401,
+        );
+      }
+
+      return c.json(
+        {
+          ok: false,
+          error:
+            "authorization_unavailable",
+        },
+        503,
+      );
+    }
+
+    const response:
+      PermissionContextResponse = {
+        permissions:
+          Array.from(
+            result.context.permissions,
+          ).sort(),
+      };
+
+    return c.json(
+      response,
+      200,
+    );
+  },
+);
 // =========================================================
 // LOGOUT
 //

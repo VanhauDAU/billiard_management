@@ -1,17 +1,28 @@
 export const IPC_CHANNELS = {
-  appGetVersion: 'app:get-version',
+  appGetVersion:
+    'app:get-version',
 
-  backendHealth: 'backend:health',
+  backendHealth:
+    'backend:health',
 
-  deviceGetState: 'device:get-state',
+  deviceGetState:
+    'device:get-state',
 
-  deviceActivate: 'device:activate',
+  deviceActivate:
+    'device:activate',
 
-  authGetState: 'auth:get-state',
+  authGetState:
+    'auth:get-state',
 
-  authGetEmployees: 'auth:get-employees',
+  authGetEmployees:
+    'auth:get-employees',
 
-  authLogin: 'auth:login',
+  authGetPermissions:
+    'auth:get-permissions',
 
-  authLogout: 'auth:logout'
+  authLogin:
+    'auth:login',
+
+  authLogout:
+    'auth:logout'
 } as const

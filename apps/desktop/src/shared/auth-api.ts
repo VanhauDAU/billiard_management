@@ -1,6 +1,7 @@
 import type {
   AuthSessionResponse,
   EmployeeListResponse,
+  PermissionContextResponse,
   PinLoginRequest
 } from '@billiards/contracts'
 
@@ -88,3 +89,19 @@ export interface DesktopLogoutResult {
 
   remoteRevoked: boolean
 }
+export type DesktopPermissionResult =
+  | {
+      ok: true
+
+      value:
+        PermissionContextResponse
+    }
+  | {
+      ok: false
+
+      error:
+        | 'signed_out'
+        | 'device_not_ready'
+        | 'backend_unavailable'
+        | 'secure_storage_unavailable'
+    }

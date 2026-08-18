@@ -19,13 +19,31 @@ const desktopApi = Object.freeze({
     activate: (input) => ipcRenderer.invoke(IPC_CHANNELS.deviceActivate, input)
   }),
   auth: Object.freeze({
-    getState: () => ipcRenderer.invoke(IPC_CHANNELS.authGetState),
+    getState: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.authGetState
+      ),
 
-    getEmployees: () => ipcRenderer.invoke(IPC_CHANNELS.authGetEmployees),
+    getEmployees: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.authGetEmployees
+      ),
 
-    login: (input) => ipcRenderer.invoke(IPC_CHANNELS.authLogin, input),
+    getPermissions: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.authGetPermissions
+      ),
 
-    logout: () => ipcRenderer.invoke(IPC_CHANNELS.authLogout)
+    login: (input) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.authLogin,
+        input
+      ),
+
+    logout: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.authLogout
+      )
   })
 }) satisfies DesktopApi
 

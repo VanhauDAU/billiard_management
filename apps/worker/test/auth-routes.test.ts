@@ -2,8 +2,10 @@ import { env, exports } from "cloudflare:workers";
 
 import { describe, expect, it } from "vitest";
 
-import type { PinLoginResponse } from "@billiards/contracts";
-
+import type {
+  PermissionKey,
+  PinLoginResponse
+} from "@billiards/contracts";
 import {
   generateDeviceSecret,
   sha256Hex,
@@ -27,7 +29,34 @@ type HttpAuthFixture = {
 
   pin: string;
 };
+async function grantFixturePermission(
+  fixture: HttpAuthFixture,
+  permission:
+    PermissionKey,
+): Promise<void> {
+  await env.DB
+    .prepare(
+      `
+        INSERT INTO role_permissions (
+          store_id,
+          role_id,
+          permission_key
+        )
 
+        VALUES (
+          ?1,
+          ?2,
+          ?3
+        )
+      `,
+    )
+    .bind(
+      fixture.storeId,
+      fixture.roleId,
+      permission,
+    )
+    .run();
+}
 async function createHttpAuthFixture(options?: {
   createPin?: boolean;
 }): Promise<HttpAuthFixture> {
@@ -609,7 +638,144 @@ describe("Authentication HTTP routes", () => {
       error: "invalid_auth_session",
     });
   });
+  it(
+    "requires an AuthSession for the permissions endpoint",
+    async () => {
+      const fixture =
+        await createHttpAuthFixture();
 
+      const response =
+        await exports.default.fetch(
+          new Request(
+            "https://example.test/api/auth/permissions",
+            {
+              headers: {
+                Authorization:
+                  deviceAuthorization(
+                    fixture,
+                  ),
+              },
+            },
+          ),
+        );
+
+      expect(
+        response.status,
+      ).toBe(401);
+
+      expect(
+        await response.json(),
+      ).toMatchObject({
+        ok: false,
+        error:
+          "auth_session_required",
+      });
+    },
+  );
+
+  it(
+    "returns current permissions and reflects revocation without a new login",
+    async () => {
+      const fixture =
+        await createHttpAuthFixture();
+
+      await grantFixturePermission(
+        fixture,
+        "table.view",
+      );
+
+      await grantFixturePermission(
+        fixture,
+        "bill.view",
+      );
+
+      const login =
+        await loginThroughHttp(
+          fixture,
+        );
+
+      const firstResponse =
+        await exports.default.fetch(
+          new Request(
+            "https://example.test/api/auth/permissions",
+            {
+              headers: {
+                Authorization:
+                  deviceAuthorization(
+                    fixture,
+                  ),
+
+                "X-Auth-Session":
+                  login.sessionToken,
+              },
+            },
+          ),
+        );
+
+      expect(
+        firstResponse.status,
+      ).toBe(200);
+
+      expect(
+        await firstResponse.json(),
+      ).toEqual({
+        permissions: [
+          "bill.view",
+          "table.view",
+        ],
+      });
+
+
+      await env.DB
+        .prepare(
+          `
+            DELETE FROM role_permissions
+
+            WHERE
+              store_id = ?1
+              AND role_id = ?2
+              AND permission_key =
+                'table.view'
+          `,
+        )
+        .bind(
+          fixture.storeId,
+          fixture.roleId,
+        )
+        .run();
+
+
+      const secondResponse =
+        await exports.default.fetch(
+          new Request(
+            "https://example.test/api/auth/permissions",
+            {
+              headers: {
+                Authorization:
+                  deviceAuthorization(
+                    fixture,
+                  ),
+
+                "X-Auth-Session":
+                  login.sessionToken,
+              },
+            },
+          ),
+        );
+
+      expect(
+        secondResponse.status,
+      ).toBe(200);
+
+      expect(
+        await secondResponse.json(),
+      ).toEqual({
+        permissions: [
+          "bill.view",
+        ],
+      });
+    },
+  );
   it("logs out the authenticated session and rejects subsequent use", async () => {
     const fixture = await createHttpAuthFixture();
 
