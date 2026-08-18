@@ -11,6 +11,8 @@ export const IPC_CHANNELS = {
   authLogin: 'auth:login',
   authLoginWithPassword: 'auth:login-password',
   authVerifyPin: 'auth:verify-pin',
+  authChangePassword: 'auth:change-password',
+  authChangePin: 'auth:change-pin',
   authLogout: 'auth:logout',
 
   staffList: 'staff:list',

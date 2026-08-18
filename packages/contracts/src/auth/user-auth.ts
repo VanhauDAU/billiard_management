@@ -133,6 +133,42 @@ export const CreateStaffRequestSchema = z
 
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>
 
+export const DeleteStaffResponseSchema = z.object({
+  ok: z.literal(true)
+})
+
+export type DeleteStaffResponse = z.infer<typeof DeleteStaffResponseSchema>
+
+// =========================================================
+// CREDENTIAL MANAGEMENT (PASSWORD & PIN CHANGE)
+// =========================================================
+
+export const ChangePasswordRequestSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Vui lòng nhập mật khẩu hiện tại'),
+    newPassword: PasswordSchema
+  })
+  .strict()
+
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>
+
+export const ChangePinRequestSchema = z
+  .object({
+    currentPin: Pin4Schema.optional(),
+    verifyPassword: z.string().optional(),
+    newPin: Pin4Schema
+  })
+  .strict()
+
+export type ChangePinRequest = z.infer<typeof ChangePinRequestSchema>
+
+export const ChangeCredentialResponseSchema = z.object({
+  ok: z.boolean(),
+  message: z.string().optional()
+})
+
+export type ChangeCredentialResponse = z.infer<typeof ChangeCredentialResponseSchema>
+
 export const UpdateStaffRequestSchema = z
   .object({
     displayName: z.string().min(2).optional(),

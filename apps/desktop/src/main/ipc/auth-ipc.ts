@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
 import {
+  ChangePasswordRequestSchema,
+  ChangePinRequestSchema,
   CreateStaffRequestSchema,
   PasswordLoginRequestSchema,
   PinLoginRequestSchema,
@@ -8,6 +10,8 @@ import {
 } from '@billiards/contracts'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import {
+  changeDesktopPassword,
+  changeDesktopPin,
   createDesktopStaff,
   deleteDesktopStaff,
   getDesktopAuthEmployees,
@@ -63,6 +67,24 @@ export function registerAuthIpc(): void {
       throw new Error('invalid_verify_pin_input')
     }
     return verifyDesktopPin(parsed.data)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.authChangePassword, async (event, rawInput: unknown) => {
+    assertTrustedIpcSender(event)
+    const parsed = ChangePasswordRequestSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      throw new Error('invalid_change_password_input')
+    }
+    return changeDesktopPassword(parsed.data)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.authChangePin, async (event, rawInput: unknown) => {
+    assertTrustedIpcSender(event)
+    const parsed = ChangePinRequestSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      throw new Error('invalid_change_pin_input')
+    }
+    return changeDesktopPin(parsed.data)
   })
 
   ipcMain.handle(IPC_CHANNELS.authLogout, async (event) => {

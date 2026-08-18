@@ -1,5 +1,7 @@
 import type {
   AuthSessionResponse,
+  ChangePasswordRequest,
+  ChangePinRequest,
   EmployeeListResponse,
   LoginResponse,
   PasswordLoginRequest,
@@ -16,6 +18,18 @@ export type DesktopPinLoginInput = PinLoginRequest
 export type DesktopLoginInput = PasswordLoginRequest
 
 export type DesktopVerifyPinInput = VerifyPinRequest
+
+export type DesktopChangePasswordInput = ChangePasswordRequest
+
+export type DesktopChangePasswordResult =
+  | { ok: true; message?: string }
+  | { ok: false; error: string; message?: string }
+
+export type DesktopChangePinInput = ChangePinRequest
+
+export type DesktopChangePinResult =
+  | { ok: true; message?: string }
+  | { ok: false; error: string; message?: string }
 
 export type DesktopAuthState =
   | {

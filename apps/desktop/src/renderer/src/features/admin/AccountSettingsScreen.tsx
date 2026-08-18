@@ -82,7 +82,7 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps): R
   }
 
   // 2. Change Password
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentPassword) {
       toast.error('Vui lòng nhập mật khẩu hiện tại!')
@@ -97,16 +97,30 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps): R
       return
     }
 
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
-    toast.success('Đổi mật khẩu thành công!', {
-      description: 'Mật khẩu mới đã được cập nhật an toàn'
-    })
+    try {
+      const res = await window.desktopApi.auth.changePassword({
+        currentPassword,
+        newPassword
+      })
+
+      if (res.ok) {
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        toast.success('Đổi mật khẩu thành công!', {
+          description: 'Mật khẩu mới đã được lưu vào cơ sở dữ liệu. Hãy dùng mật khẩu mới trong lần đăng nhập tiếp theo.'
+        })
+      } else {
+        toast.error(res.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại!')
+      }
+    } catch (err) {
+      console.error('Change password failed:', err)
+      toast.error('Không thể kết nối máy chủ để đổi mật khẩu.')
+    }
   }
 
   // 3. Change PIN
-  const handleChangePin = (e: React.FormEvent) => {
+  const handleChangePin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!/^\d{4}$/.test(newPin)) {
       toast.error('Mã PIN mới phải gồm đúng 4 chữ số!')
@@ -117,16 +131,30 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps): R
       return
     }
 
-    setCurrentPin('')
-    setNewPin('')
-    setConfirmPin('')
-    toast.success('Đổi mã PIN POS thành công!', {
-      description: 'Mã PIN 4 số mới sẵn sàng để đăng nhập nhanh tại quầy'
-    })
+    try {
+      const res = await window.desktopApi.auth.changePin({
+        currentPin: currentPin || undefined,
+        newPin
+      })
+
+      if (res.ok) {
+        setCurrentPin('')
+        setNewPin('')
+        setConfirmPin('')
+        toast.success('Đổi mã PIN POS thành công!', {
+          description: 'Mã PIN 4 số mới đã được lưu vào cơ sở dữ liệu và sẵn sàng để đăng nhập nhanh tại quầy'
+        })
+      } else {
+        toast.error(res.message || 'Mã PIN hiện tại không chính xác!')
+      }
+    } catch (err) {
+      console.error('Change PIN failed:', err)
+      toast.error('Không thể kết nối máy chủ để đổi mã PIN.')
+    }
   }
 
   // 4. Reset PIN via Account Password (Quên mã PIN)
-  const handleResetPinViaPassword = (e: React.FormEvent) => {
+  const handleResetPinViaPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!verifyPasswordForPin) {
       toast.error('Vui lòng nhập mật khẩu tài khoản để xác thực!')
@@ -141,13 +169,27 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps): R
       return
     }
 
-    setIsForgotPinModalOpen(false)
-    setVerifyPasswordForPin('')
-    setResetNewPin('')
-    setResetConfirmPin('')
-    toast.success('Khôi phục mã PIN thành công!', {
-      description: 'Đã thiết lập lại mã PIN mới qua xác thực mật khẩu chủ quán'
-    })
+    try {
+      const res = await window.desktopApi.auth.changePin({
+        verifyPassword: verifyPasswordForPin,
+        newPin: resetNewPin
+      })
+
+      if (res.ok) {
+        setIsForgotPinModalOpen(false)
+        setVerifyPasswordForPin('')
+        setResetNewPin('')
+        setResetConfirmPin('')
+        toast.success('Khôi phục mã PIN thành công!', {
+          description: 'Đã thiết lập lại mã PIN mới vào cơ sở dữ liệu qua xác thực mật khẩu chủ quán'
+        })
+      } else {
+        toast.error(res.message || 'Mật khẩu tài khoản chủ quán không chính xác!')
+      }
+    } catch (err) {
+      console.error('Reset PIN failed:', err)
+      toast.error('Không thể kết nối máy chủ để cấp lại mã PIN.')
+    }
   }
 
   return (

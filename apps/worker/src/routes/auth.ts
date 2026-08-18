@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 
 import {
+  ChangePasswordRequestSchema,
+  ChangePinRequestSchema,
   PasswordLoginRequestSchema,
   PinLoginRequestSchema,
   VerifyPinRequestSchema
@@ -18,6 +20,8 @@ import { requireAuthSession } from '../middleware/require-auth-session'
 
 import {
   authenticateEmployeePin,
+  changeUserPassword,
+  changeUserPin,
   listEmployeesForDevice,
   loginWithPassword,
   revokeAuthSession,
@@ -217,3 +221,82 @@ authRoutes.post('/logout', requireAuthSession, async (c) => {
 
   return c.json(response, 200)
 })
+
+// =========================================================
+// CHANGE PASSWORD
+// POST /api/auth/change-password
+// =========================================================
+
+authRoutes.post('/change-password', requireAuthSession, async (c) => {
+  let body: unknown
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ ok: false, error: 'invalid_json' }, 400)
+  }
+
+  const parsed = ChangePasswordRequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ ok: false, error: 'invalid_request', details: parsed.error.issues }, 400)
+  }
+
+  const authContext = c.get('authContext')
+  const result = await changeUserPassword(
+    c.env.DB,
+    authContext.actorId,
+    authContext.storeId,
+    parsed.data.currentPassword,
+    parsed.data.newPassword
+  )
+
+  if (!result.ok) {
+    if (result.error === 'invalid_current_password') {
+      return c.json({ ok: false, error: 'invalid_current_password', message: 'Mật khẩu hiện tại không chính xác' }, 400)
+    }
+    return c.json({ ok: false, error: result.error, message: 'Đổi mật khẩu thất bại' }, 500)
+  }
+
+  return c.json({ ok: true, message: 'Đổi mật khẩu thành công' }, 200)
+})
+
+// =========================================================
+// CHANGE PIN
+// POST /api/auth/change-pin
+// =========================================================
+
+authRoutes.post('/change-pin', requireAuthSession, async (c) => {
+  let body: unknown
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ ok: false, error: 'invalid_json' }, 400)
+  }
+
+  const parsed = ChangePinRequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ ok: false, error: 'invalid_request', details: parsed.error.issues }, 400)
+  }
+
+  const authContext = c.get('authContext')
+  const result = await changeUserPin(
+    c.env.DB,
+    authContext.actorId,
+    authContext.storeId,
+    parsed.data.newPin,
+    parsed.data.currentPin,
+    parsed.data.verifyPassword
+  )
+
+  if (!result.ok) {
+    if (result.error === 'invalid_current_pin') {
+      return c.json({ ok: false, error: 'invalid_current_pin', message: 'Mã PIN hiện tại không chính xác' }, 400)
+    }
+    if (result.error === 'invalid_password') {
+      return c.json({ ok: false, error: 'invalid_password', message: 'Mật khẩu xác thực không chính xác' }, 400)
+    }
+    return c.json({ ok: false, error: result.error, message: 'Đổi mã PIN thất bại' }, 500)
+  }
+
+  return c.json({ ok: true, message: 'Cập nhật mã PIN thành công' }, 200)
+})
+

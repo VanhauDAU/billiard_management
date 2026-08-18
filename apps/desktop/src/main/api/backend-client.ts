@@ -4,6 +4,10 @@ import {
   ActivateDeviceResponseSchema,
   ApiHealthResponseSchema,
   AuthSessionResponseSchema,
+  ChangeCredentialResponse,
+  ChangeCredentialResponseSchema,
+  ChangePasswordRequest,
+  ChangePinRequest,
   CreateStaffRequest,
   DeviceContextSchema,
   EmployeeListResponseSchema,
@@ -190,6 +194,52 @@ export async function verifyPinHttp(
   const parsed = VerifyPinResponseSchema.safeParse(body)
   if (!parsed.success) {
     throw new Error('invalid_verify_pin_response')
+  }
+
+  return parsed.data
+}
+
+// =========================================================
+// CHANGE PASSWORD & PIN HTTP
+// =========================================================
+
+export async function changePasswordHttp(
+  sessionToken: string,
+  input: ChangePasswordRequest
+): Promise<ChangeCredentialResponse> {
+  const body = await requestJson('/api/auth/change-password', {
+    method: 'POST',
+    headers: {
+      'X-Auth-Session': sessionToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(input)
+  })
+
+  const parsed = ChangeCredentialResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_change_password_response')
+  }
+
+  return parsed.data
+}
+
+export async function changePinHttp(
+  sessionToken: string,
+  input: ChangePinRequest
+): Promise<ChangeCredentialResponse> {
+  const body = await requestJson('/api/auth/change-pin', {
+    method: 'POST',
+    headers: {
+      'X-Auth-Session': sessionToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(input)
+  })
+
+  const parsed = ChangeCredentialResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_change_pin_response')
   }
 
   return parsed.data

@@ -13,10 +13,12 @@ import type {
 
 import {
   PIN_KDF_ALGORITHM,
+  createPinHash,
   verifyPin
 } from '../security/pin-credential'
 
 import {
+  createPasswordHash,
   verifyPassword
 } from '../security/password-credential'
 
@@ -838,4 +840,180 @@ export async function revokeAuthSession(
     .run()
 
   return result.success && result.meta.changes === 1
+}
+
+// =========================================================
+// PASSWORD & PIN CHANGE SERVICES
+// =========================================================
+
+export type ChangePasswordResult =
+  | { ok: true }
+  | { ok: false; error: 'invalid_current_password' | 'user_not_found' | 'database_error' }
+
+export async function changeUserPassword(
+  db: D1Database,
+  userId: string,
+  storeId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<ChangePasswordResult> {
+  try {
+    const pwdRow = await db
+      .prepare(`
+        SELECT password_hash, password_salt, kdf_iterations, status
+        FROM user_password_credentials
+        WHERE user_id = ?1 AND store_id = ?2
+      `)
+      .bind(userId, storeId)
+      .first<{
+        password_hash: string
+        password_salt: string
+        kdf_iterations: number
+        status: string
+      }>()
+
+    if (!pwdRow || pwdRow.status !== 'active') {
+      return { ok: false, error: 'user_not_found' }
+    }
+
+    const isCurrentValid = await verifyPassword(
+      currentPassword,
+      pwdRow.password_salt,
+      pwdRow.password_hash,
+      pwdRow.kdf_iterations
+    )
+
+    if (!isCurrentValid) {
+      return { ok: false, error: 'invalid_current_password' }
+    }
+
+    const newPwdData = await createPasswordHash(newPassword)
+
+    await db
+      .prepare(`
+        UPDATE user_password_credentials
+        SET
+          password_hash = ?1,
+          password_salt = ?2,
+          kdf_algorithm = ?3,
+          kdf_iterations = ?4,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?5 AND store_id = ?6
+      `)
+      .bind(
+        newPwdData.hash,
+        newPwdData.salt,
+        newPwdData.algorithm,
+        newPwdData.iterations,
+        userId,
+        storeId
+      )
+      .run()
+
+    return { ok: true }
+  } catch (err) {
+    console.error('changeUserPassword failed:', err)
+    return { ok: false, error: 'database_error' }
+  }
+}
+
+export type ChangePinResult =
+  | { ok: true }
+  | { ok: false; error: 'invalid_current_pin' | 'invalid_password' | 'user_not_found' | 'database_error' }
+
+export async function changeUserPin(
+  db: D1Database,
+  userId: string,
+  storeId: string,
+  newPin: string,
+  currentPin?: string,
+  verifyPasswordInput?: string
+): Promise<ChangePinResult> {
+  try {
+    if (verifyPasswordInput) {
+      const pwdRow = await db
+        .prepare(`
+          SELECT password_hash, password_salt, kdf_iterations
+          FROM user_password_credentials
+          WHERE user_id = ?1 AND store_id = ?2
+        `)
+        .bind(userId, storeId)
+        .first<{
+          password_hash: string
+          password_salt: string
+          kdf_iterations: number
+        }>()
+
+      if (!pwdRow) return { ok: false, error: 'user_not_found' }
+
+      const isPassValid = await verifyPassword(
+        verifyPasswordInput,
+        pwdRow.password_salt,
+        pwdRow.password_hash,
+        pwdRow.kdf_iterations
+      )
+
+      if (!isPassValid) {
+        return { ok: false, error: 'invalid_password' }
+      }
+    } else if (currentPin) {
+      const pinRow = await db
+        .prepare(`
+          SELECT pin_hash, pin_salt, kdf_iterations
+          FROM employee_pin_credentials
+          WHERE user_id = ?1 AND store_id = ?2
+        `)
+        .bind(userId, storeId)
+        .first<{
+          pin_hash: string
+          pin_salt: string
+          kdf_iterations: number
+        }>()
+
+      if (pinRow) {
+        const isPinValid = await verifyPin(
+          currentPin,
+          pinRow.pin_salt,
+          pinRow.pin_hash,
+          pinRow.kdf_iterations
+        )
+        if (!isPinValid) {
+          return { ok: false, error: 'invalid_current_pin' }
+        }
+      }
+    }
+
+    const newPinData = await createPinHash(newPin)
+    const pinId = `pin_${crypto.randomUUID().slice(0, 8)}`
+
+    await db
+      .prepare(`
+        INSERT INTO employee_pin_credentials (
+          id, store_id, user_id, pin_hash, pin_salt, kdf_algorithm, kdf_iterations, status
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'active')
+        ON CONFLICT(store_id, user_id) DO UPDATE SET
+          pin_hash = excluded.pin_hash,
+          pin_salt = excluded.pin_salt,
+          kdf_algorithm = excluded.kdf_algorithm,
+          kdf_iterations = excluded.kdf_iterations,
+          status = 'active',
+          updated_at = CURRENT_TIMESTAMP
+      `)
+      .bind(
+        pinId,
+        storeId,
+        userId,
+        newPinData.hash,
+        newPinData.salt,
+        newPinData.algorithm,
+        newPinData.iterations
+      )
+      .run()
+
+    return { ok: true }
+  } catch (err) {
+    console.error('changeUserPin failed:', err)
+    return { ok: false, error: 'database_error' }
+  }
 }

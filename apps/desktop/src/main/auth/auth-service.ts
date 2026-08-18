@@ -7,6 +7,10 @@ import type {
 
 import type {
   DesktopAuthState,
+  DesktopChangePasswordInput,
+  DesktopChangePasswordResult,
+  DesktopChangePinInput,
+  DesktopChangePinResult,
   DesktopCreateStaffResult,
   DesktopDeleteStaffResult,
   DesktopEmployeeListResult,
@@ -23,6 +27,8 @@ import type {
 
 import {
   BackendApiError,
+  changePasswordHttp,
+  changePinHttp,
   createStaffHttp,
   deleteStaffHttp,
   getAuthEmployees,
@@ -351,3 +357,49 @@ export async function getDesktopPermissions(): Promise<DesktopPermissionResult> 
     return { ok: false, error: 'backend_unavailable' }
   }
 }
+
+// =========================================================
+// CHANGE PASSWORD & PIN (Admin Settings)
+// =========================================================
+
+export async function changeDesktopPassword(
+  input: DesktopChangePasswordInput
+): Promise<DesktopChangePasswordResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out', message: 'Chưa đăng nhập hệ thống' }
+  }
+
+  try {
+    const res = await changePasswordHttp(sessionCredential.sessionToken, input)
+    return { ok: true, message: res.message || 'Đổi mật khẩu thành công' }
+  } catch (error) {
+    if (error instanceof BackendApiError && error.code === 'invalid_current_password') {
+      return { ok: false, error: 'invalid_current_password', message: 'Mật khẩu hiện tại không chính xác' }
+    }
+    return { ok: false, error: 'failed', message: 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại dịch vụ.' }
+  }
+}
+
+export async function changeDesktopPin(
+  input: DesktopChangePinInput
+): Promise<DesktopChangePinResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out', message: 'Chưa đăng nhập hệ thống' }
+  }
+
+  try {
+    const res = await changePinHttp(sessionCredential.sessionToken, input)
+    return { ok: true, message: res.message || 'Cập nhật mã PIN thành công' }
+  } catch (error) {
+    if (error instanceof BackendApiError && error.code === 'invalid_current_pin') {
+      return { ok: false, error: 'invalid_current_pin', message: 'Mã PIN hiện tại không chính xác' }
+    }
+    if (error instanceof BackendApiError && error.code === 'invalid_password') {
+      return { ok: false, error: 'invalid_password', message: 'Mật khẩu tài khoản không chính xác' }
+    }
+    return { ok: false, error: 'failed', message: 'Cập nhật mã PIN thất bại. Vui lòng kiểm tra lại dịch vụ.' }
+  }
+}
+

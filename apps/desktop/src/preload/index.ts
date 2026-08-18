@@ -23,6 +23,8 @@ const desktopApi = Object.freeze({
     login: (input) => ipcRenderer.invoke(IPC_CHANNELS.authLogin, input),
     loginWithPassword: (input) => ipcRenderer.invoke(IPC_CHANNELS.authLoginWithPassword, input),
     verifyPin: (input) => ipcRenderer.invoke(IPC_CHANNELS.authVerifyPin, input),
+    changePassword: (input) => ipcRenderer.invoke(IPC_CHANNELS.authChangePassword, input),
+    changePin: (input) => ipcRenderer.invoke(IPC_CHANNELS.authChangePin, input),
     logout: () => ipcRenderer.invoke(IPC_CHANNELS.authLogout)
   }),
 
