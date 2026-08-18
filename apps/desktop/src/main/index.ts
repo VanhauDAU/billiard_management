@@ -1,25 +1,12 @@
-import {
-  app,
-  shell,
-  BrowserWindow
-} from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
-import {
-  electronApp,
-  optimizer,
-  is
-} from '@electron-toolkit/utils'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerAppIpc } from './ipc/app-ipc'
 import { registerBackendIpc } from './ipc/backend-ipc'
-import {
-  isAllowedExternalUrl,
-  isTrustedRendererUrl
-} from './security/trusted-url'
-import {
-  registerDeviceIpc
-} from './ipc/device-ipc'
-
+import { isAllowedExternalUrl, isTrustedRendererUrl } from './security/trusted-url'
+import { registerDeviceIpc } from './ipc/device-ipc'
+import { registerAuthIpc } from './ipc/auth-ipc'
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -28,14 +15,9 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux'
-      ? { icon }
-      : {}),
+    ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(
-        __dirname,
-        '../preload/index.js'
-      ),
+      preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -43,127 +25,70 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.webContents.session
-    .setPermissionCheckHandler(
-      () => false
-    )
+  mainWindow.webContents.session.setPermissionCheckHandler(() => false)
 
-  mainWindow.webContents.session
-    .setPermissionRequestHandler(
-      (_webContents, _permission, callback) => {
-        callback(false)
-      }
-    )
-
-  mainWindow.on(
-    'ready-to-show',
-    () => {
-      mainWindow.show()
+  mainWindow.webContents.session.setPermissionRequestHandler(
+    (_webContents, _permission, callback) => {
+      callback(false)
     }
   )
 
-  mainWindow.webContents
-    .setWindowOpenHandler(
-      ({ url }) => {
-        if (
-          isAllowedExternalUrl(
-            url
-          )
-        ) {
-          void shell.openExternal(
-            url
-          )
-        }
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show()
+  })
 
-        return {
-          action: 'deny'
-        }
-      }
-    )
-
-  mainWindow.webContents.on(
-    'will-navigate',
-    (event, url) => {
-      if (
-        isTrustedRendererUrl(
-          url
-        )
-      ) {
-        return
-      }
-
-      event.preventDefault()
-
-      if (
-        isAllowedExternalUrl(
-          url
-        )
-      ) {
-        void shell.openExternal(
-          url
-        )
-      }
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url)
     }
-  )
 
-  if (
-    is.dev &&
-    process.env[
-      'ELECTRON_RENDERER_URL'
-    ]
-  ) {
-    void mainWindow.loadURL(
-      process.env[
-        'ELECTRON_RENDERER_URL'
-      ]
-    )
+    return {
+      action: 'deny'
+    }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isTrustedRendererUrl(url)) {
+      return
+    }
+
+    event.preventDefault()
+
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url)
+    }
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    void mainWindow.loadFile(
-      join(
-        __dirname,
-        '../renderer/index.html'
-      )
-    )
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId(
-    'com.billiards.pos'
-  )
+  electronApp.setAppUserModelId('com.billiards.pos')
 
-  app.on(
-    'browser-window-created',
-    (_, window) => {
-      optimizer.watchWindowShortcuts(
-        window
-      )
-    }
-  )
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window)
+  })
 
   registerAppIpc()
   registerBackendIpc()
   registerDeviceIpc()
+  registerAuthIpc()
+
   createWindow()
 
   app.on('activate', () => {
-    if (
-      BrowserWindow
-        .getAllWindows()
-        .length === 0
-    ) {
+    if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
     }
   })
 })
 
-app.on(
-  'window-all-closed',
-  () => {
-    if (
-      process.platform !== 'darwin'
-    ) {
-      app.quit()
-    }
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
   }
-)
+})

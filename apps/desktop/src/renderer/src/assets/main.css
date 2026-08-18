@@ -1,5 +1,5 @@
 @import './base.css';
-
+@import './auth.css';
 * {
   box-sizing: border-box;
 }

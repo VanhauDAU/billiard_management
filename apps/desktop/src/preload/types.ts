@@ -1,8 +1,11 @@
+import type { ActivateDesktopDeviceInput, DesktopDeviceState } from '../shared/device-api'
 import type {
-  ActivateDesktopDeviceInput,
-  DesktopDeviceState
-} from '../shared/device-api'
-
+  DesktopAuthState,
+  DesktopEmployeeListResult,
+  DesktopLogoutResult,
+  DesktopPinLoginInput,
+  DesktopPinLoginResult
+} from '../shared/auth-api'
 export interface BackendHealth {
   ok: boolean
   service: string
@@ -10,23 +13,25 @@ export interface BackendHealth {
 
 export interface DesktopApi {
   app: {
-    getVersion():
-      Promise<string>
+    getVersion(): Promise<string>
   }
 
   backend: {
-    health():
-      Promise<BackendHealth>
+    health(): Promise<BackendHealth>
   }
 
   device: {
-    getState():
-      Promise<DesktopDeviceState>
+    getState(): Promise<DesktopDeviceState>
 
-    activate(
-      input:
-        ActivateDesktopDeviceInput
-    ):
-      Promise<DesktopDeviceState>
+    activate(input: ActivateDesktopDeviceInput): Promise<DesktopDeviceState>
+  }
+  auth: {
+    getState(): Promise<DesktopAuthState>
+
+    getEmployees(): Promise<DesktopEmployeeListResult>
+
+    login(input: DesktopPinLoginInput): Promise<DesktopPinLoginResult>
+
+    logout(): Promise<DesktopLogoutResult>
   }
 }

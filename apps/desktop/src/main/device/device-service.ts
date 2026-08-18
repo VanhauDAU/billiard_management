@@ -1,33 +1,20 @@
 import { app } from 'electron'
 
-import type {
-  ActivateDeviceRequest
-} from '@billiards/contracts'
+import type { ActivateDeviceRequest } from '@billiards/contracts'
 
-import type {
-  ActivateDesktopDeviceInput,
-  DesktopDeviceState
-} from '../../shared/device-api'
+import type { ActivateDesktopDeviceInput, DesktopDeviceState } from '../../shared/device-api'
 
-import {
-  activateDevice,
-  BackendApiError,
-  getDeviceContext
-} from '../api/backend-client'
+import { activateDevice, BackendApiError, getDeviceContext } from '../api/backend-client'
 
-import {
-  getOrCreateInstallationId
-} from './installation-id'
+import { getOrCreateInstallationId } from './installation-id'
 
 import {
   assertDeviceCredentialStorageAvailable,
   loadDeviceCredential,
   saveDeviceCredential
 } from '../security/device-credential-store'
-
-function getDesktopPlatform():
-  | 'windows'
-  | 'macos' {
+import { deleteAuthSessionCredential } from '../security/auth-session-credential-store'
+function getDesktopPlatform(): 'windows' | 'macos' {
   switch (process.platform) {
     case 'win32':
       return 'windows'
@@ -36,39 +23,21 @@ function getDesktopPlatform():
       return 'macos'
 
     default:
-      throw new Error(
-        `unsupported_desktop_platform:${process.platform}`
-      )
+      throw new Error(`unsupported_desktop_platform:${process.platform}`)
   }
 }
 
-function hasErrorMessage(
-  error: unknown,
-  message: string
-): boolean {
-  return (
-    error instanceof Error &&
-    error.message === message
-  )
+function hasErrorMessage(error: unknown, message: string): boolean {
+  return error instanceof Error && error.message === message
 }
 
-function isBlockedError(
-  error: BackendApiError
-): error is BackendApiError & {
-  code:
-    | 'device_revoked'
-    | 'device_inactive'
-    | 'store_inactive'
+function isBlockedError(error: BackendApiError): error is BackendApiError & {
+  code: 'device_revoked' | 'device_inactive' | 'store_inactive'
 } {
   return (
-    error.code ===
-      'device_revoked' ||
-
-    error.code ===
-      'device_inactive' ||
-
-    error.code ===
-      'store_inactive'
+    error.code === 'device_revoked' ||
+    error.code === 'device_inactive' ||
+    error.code === 'store_inactive'
   )
 }
 
@@ -80,10 +49,7 @@ async function resolveCredentialState(
   }
 ): Promise<DesktopDeviceState> {
   try {
-    const context =
-      await getDeviceContext(
-        credential
-      )
+    const context = await getDeviceContext(credential)
 
     return {
       status: 'ready',
@@ -91,30 +57,18 @@ async function resolveCredentialState(
       context
     }
   } catch (error) {
-    if (
-      error instanceof
-        BackendApiError
-    ) {
-      if (
-        error.status === 401 &&
-        error.code ===
-          'invalid_device_credential'
-      ) {
+    if (error instanceof BackendApiError) {
+      if (error.status === 401 && error.code === 'invalid_device_credential') {
         return {
-          status:
-            'needs_reactivation',
+          status: 'needs_reactivation',
 
           installationId,
 
-          reason:
-            'invalid_device_credential'
+          reason: 'invalid_device_credential'
         }
       }
 
-      if (
-        error.status === 403 &&
-        isBlockedError(error)
-      ) {
+      if (error.status === 403 && isBlockedError(error)) {
         return {
           status: 'blocked',
 
@@ -128,8 +82,7 @@ async function resolveCredentialState(
     return {
       status: 'unavailable',
       installationId,
-      reason:
-        'backend_unavailable'
+      reason: 'backend_unavailable'
     }
   }
 }
@@ -138,63 +91,37 @@ export async function getDesktopDeviceState(): Promise<DesktopDeviceState> {
   let installationId: string
 
   try {
-    installationId =
-      await getOrCreateInstallationId()
+    installationId = await getOrCreateInstallationId()
   } catch (error) {
-    if (
-      hasErrorMessage(
-        error,
-        'invalid_installation_identity_file'
-      )
-    ) {
+    if (hasErrorMessage(error, 'invalid_installation_identity_file')) {
       return {
         status: 'local_error',
-        reason:
-          'invalid_installation_identity'
+        reason: 'invalid_installation_identity'
       }
     }
 
     throw error
   }
 
-  let credential:
-    | Awaited<
-        ReturnType<
-          typeof loadDeviceCredential
-        >
-      >
+  let credential: Awaited<ReturnType<typeof loadDeviceCredential>>
 
   try {
-    credential =
-      await loadDeviceCredential()
+    credential = await loadDeviceCredential()
   } catch (error) {
-    if (
-      hasErrorMessage(
-        error,
-        'secure_storage_unavailable'
-      )
-    ) {
+    if (hasErrorMessage(error, 'secure_storage_unavailable')) {
       return {
         status: 'local_error',
-        reason:
-          'secure_storage_unavailable'
+        reason: 'secure_storage_unavailable'
       }
     }
 
-    if (
-      hasErrorMessage(
-        error,
-        'invalid_device_credential_file'
-      )
-    ) {
+    if (hasErrorMessage(error, 'invalid_device_credential_file')) {
       return {
-        status:
-          'needs_reactivation',
+        status: 'needs_reactivation',
 
         installationId,
 
-        reason:
-          'invalid_local_credential'
+        reason: 'invalid_local_credential'
       }
     }
 
@@ -208,73 +135,48 @@ export async function getDesktopDeviceState(): Promise<DesktopDeviceState> {
     }
   }
 
-  return resolveCredentialState(
-    installationId,
-    credential
-  )
+  return resolveCredentialState(installationId, credential)
 }
 
 export async function activateDesktopDevice(
   input: ActivateDesktopDeviceInput
 ): Promise<DesktopDeviceState> {
-  const activationToken =
-    input.activationToken.trim()
+  const activationToken = input.activationToken.trim()
 
-  const name =
-    input.name.trim()
+  const name = input.name.trim()
 
-  if (
-    activationToken.length < 32 ||
-    activationToken.length > 128
-  ) {
-    throw new Error(
-      'invalid_activation_token_format'
-    )
+  if (activationToken.length < 32 || activationToken.length > 128) {
+    throw new Error('invalid_activation_token_format')
   }
 
-  if (
-    name.length < 1 ||
-    name.length > 100
-  ) {
-    throw new Error(
-      'invalid_device_name'
-    )
+  if (name.length < 1 || name.length > 100) {
+    throw new Error('invalid_device_name')
   }
 
-  const installationId =
-    await getOrCreateInstallationId()
+  const installationId = await getOrCreateInstallationId()
 
-  const request:
-    ActivateDeviceRequest = {
-      activationToken,
+  const request: ActivateDeviceRequest = {
+    activationToken,
 
-      installationId,
+    installationId,
 
-      name,
+    name,
 
-      deviceType:
-        'desktop_pos',
+    deviceType: 'desktop_pos',
 
-      platform:
-        getDesktopPlatform(),
+    platform: getDesktopPlatform(),
 
-      appVersion:
-        app.getVersion()
-    }
+    appVersion: app.getVersion()
+  }
 
   await assertDeviceCredentialStorageAvailable()
 
-  const activation =
-    await activateDevice(
-      request
-    )
+  const activation = await activateDevice(request)
 
   const credential = {
-    deviceId:
-      activation.deviceId,
+    deviceId: activation.deviceId,
 
-    deviceSecret:
-      activation.deviceSecret
+    deviceSecret: activation.deviceSecret
   }
 
   /*
@@ -282,12 +184,15 @@ export async function activateDesktopDevice(
    * Vì vậy phải lưu credential ngay sau
    * response 201 để không làm mất secret.
    */
-  await saveDeviceCredential(
-    credential
-  )
+  await saveDeviceCredential(credential)
 
-  return resolveCredentialState(
-    installationId,
-    credential
-  )
+  /*
+   * Any employee AuthSession belongs to
+   * the previous Device authentication
+   * lifecycle and must not survive
+   * reactivation.
+   */
+  await deleteAuthSessionCredential()
+
+  return resolveCredentialState(installationId, credential)
 }
