@@ -1,6 +1,10 @@
 import type { ActivateDesktopDeviceInput, DesktopDeviceState } from '../shared/device-api'
 import type {
   DesktopAuthState,
+  DesktopChangePasswordInput,
+  DesktopChangePasswordResult,
+  DesktopChangePinInput,
+  DesktopChangePinResult,
   DesktopCreateStaffResult,
   DesktopDeleteStaffResult,
   DesktopEmployeeListResult,
@@ -51,6 +55,8 @@ export interface DesktopApi {
     login(input: DesktopPinLoginInput): Promise<DesktopPinLoginResult>
     loginWithPassword(input: DesktopLoginInput): Promise<DesktopLoginResult>
     verifyPin(input: DesktopVerifyPinInput): Promise<DesktopVerifyPinResult>
+    changePassword(input: DesktopChangePasswordInput): Promise<DesktopChangePasswordResult>
+    changePin(input: DesktopChangePinInput): Promise<DesktopChangePinResult>
     logout(): Promise<DesktopLogoutResult>
   }
 
