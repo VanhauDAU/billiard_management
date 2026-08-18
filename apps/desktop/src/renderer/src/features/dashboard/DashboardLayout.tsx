@@ -36,7 +36,6 @@ interface NavGroup {
   children?: Array<{
     key: AdminViewKey
     label: string
-    icon: string
   }>
 }
 
@@ -46,14 +45,8 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
-  // Track which accordion sections are expanded in the sidebar
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    reports: true,
-    invoices: true,
-    products: true,
-    staff: true,
-    customers: true
-  })
+  // Single accordion state: Open one group at a time ("mở cái này thì đóng cái kia")
+  const [expandedGroup, setExpandedGroup] = useState<string | null>('reports')
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -66,10 +59,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
   const store = authState.status === 'authenticated' ? authState.store : null
 
   const toggleGroup = (groupKey: string) => {
-    setExpandedGroups((prev) => ({
-      ...prev,
-      [groupKey]: !prev[groupKey]
-    }))
+    setExpandedGroup((prev) => (prev === groupKey ? null : groupKey))
   }
 
   // Define sidebar menu structure according to exact user requirements
@@ -85,9 +75,9 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
       label: 'Báo cáo',
       icon: '📈',
       children: [
-        { key: 'reports_revenue', label: 'Báo cáo doanh thu', icon: '💰' },
-        { key: 'reports_products', label: 'Báo cáo mặt hàng', icon: '📦' },
-        { key: 'reports_staff', label: 'Báo cáo nhân viên', icon: '👥' }
+        { key: 'reports_revenue', label: 'Báo cáo doanh thu' },
+        { key: 'reports_products', label: 'Báo cáo mặt hàng' },
+        { key: 'reports_staff', label: 'Báo cáo nhân viên' }
       ]
     },
     {
@@ -95,7 +85,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
       label: 'Hóa đơn',
       icon: '🧾',
       children: [
-        { key: 'invoices_sales', label: 'Hóa đơn bán hàng', icon: '📑' }
+        { key: 'invoices_sales', label: 'Hóa đơn bán hàng' }
       ]
     },
     {
@@ -103,9 +93,9 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
       label: 'Mặt hàng',
       icon: '🍽️',
       children: [
-        { key: 'products_list', label: 'Danh sách mặt hàng', icon: '📦' },
-        { key: 'products_menu', label: 'Thực đơn', icon: '🍽️' },
-        { key: 'products_categories', label: 'Danh mục', icon: '📑' }
+        { key: 'products_list', label: 'Danh sách mặt hàng' },
+        { key: 'products_menu', label: 'Thực đơn' },
+        { key: 'products_categories', label: 'Danh mục' }
       ]
     },
     {
@@ -113,8 +103,8 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
       label: 'Nhân viên',
       icon: '👥',
       children: [
-        { key: 'staff_list', label: 'Danh sách nhân viên', icon: '👤' },
-        { key: 'staff_roles', label: 'Vai trò nhân viên', icon: '🛡️' }
+        { key: 'staff_list', label: 'Danh sách nhân viên' },
+        { key: 'staff_roles', label: 'Vai trò nhân viên' }
       ]
     },
     {
@@ -122,8 +112,8 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
       label: 'Khách hàng',
       icon: '🤝',
       children: [
-        { key: 'customers_list', label: 'Danh sách khách hàng', icon: '👥' },
-        { key: 'customers_groups', label: 'Nhóm khách hàng', icon: '👑' }
+        { key: 'customers_list', label: 'Danh sách khách hàng' },
+        { key: 'customers_groups', label: 'Nhóm khách hàng' }
       ]
     }
   ]
@@ -154,7 +144,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
           </div>
         )}
 
-        {/* Navigation Menu with Accordion Dropdowns */}
+        {/* Navigation Menu with Exclusive Accordion Dropdowns */}
         <nav className="admin-sidebar-nav">
           {menuGroups.map((group) => {
             // Case 1: Single item without children (Tổng quan)
@@ -164,7 +154,10 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
                   key={group.key}
                   type="button"
                   className={`admin-nav-btn ${activeView === 'overview' ? 'active' : ''}`}
-                  onClick={() => setActiveView('overview')}
+                  onClick={() => {
+                    setActiveView('overview')
+                    setExpandedGroup(null)
+                  }}
                   title={isSidebarCollapsed ? group.label : undefined}
                 >
                   <span className="nav-btn-icon">{group.icon}</span>
@@ -179,7 +172,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
             }
 
             // Case 2: Group with dropdown children
-            const isExpanded = !!expandedGroups[group.key]
+            const isExpanded = expandedGroup === group.key
             const isChildActive = group.children.some((c) => c.key === activeView)
 
             return (
@@ -203,7 +196,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
                   )}
                 </button>
 
-                {/* Submenu Dropdown Items */}
+                {/* Submenu Items (No icons for sleek minimalist look) */}
                 {isExpanded && !isSidebarCollapsed && (
                   <div className="admin-nav-submenu">
                     {group.children.map((child) => (
@@ -213,7 +206,6 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
                         className={`admin-nav-subitem-btn ${activeView === child.key ? 'active' : ''}`}
                         onClick={() => setActiveView(child.key)}
                       >
-                        <span className="subitem-icon">{child.icon}</span>
                         <span className="subitem-label">{child.label}</span>
                         {activeView === child.key && <span className="subitem-active-dot"></span>}
                       </button>
@@ -225,8 +217,28 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
           })}
         </nav>
 
-        {/* Sidebar Footer Collapse Toggle */}
+        {/* Sidebar Footer: Pinned Settings Button & Collapse Toggle */}
         <div className="admin-sidebar-footer">
+          {/* Pinned Settings Button */}
+          <button
+            type="button"
+            className={`admin-nav-btn admin-settings-pinned-btn ${activeView === 'settings' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveView('settings')
+              setExpandedGroup(null)
+            }}
+            title={isSidebarCollapsed ? 'Thiết lập' : undefined}
+          >
+            <span className="nav-btn-icon">⚙️</span>
+            {!isSidebarCollapsed && (
+              <span className="nav-btn-label" style={{ fontWeight: 700 }}>
+                Thiết lập
+              </span>
+            )}
+            {activeView === 'settings' && <span className="nav-active-indicator"></span>}
+          </button>
+
+          {/* Collapse toggle */}
           <button
             type="button"
             className="admin-collapse-toggle-btn"
@@ -234,7 +246,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
             title={isSidebarCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
           >
             <span>{isSidebarCollapsed ? '⏩' : '⏪'}</span>
-            {!isSidebarCollapsed && <span>Thu gọn thanh bên</span>}
+            {!isSidebarCollapsed && <span>Thu gọn</span>}
           </button>
         </div>
       </aside>
@@ -259,7 +271,10 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
               <button
                 type="button"
                 className="topbar-action-btn"
-                onClick={() => setActiveView('reports_revenue')}
+                onClick={() => {
+                  setActiveView('reports_revenue')
+                  setExpandedGroup('reports')
+                }}
                 title="Xem báo cáo doanh thu"
               >
                 📊 Doanh thu
@@ -267,7 +282,10 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
               <button
                 type="button"
                 className="topbar-action-btn"
-                onClick={() => setActiveView('products_list')}
+                onClick={() => {
+                  setActiveView('products_list')
+                  setExpandedGroup('products')
+                }}
                 title="Danh sách mặt hàng"
               >
                 📦 Mặt hàng
@@ -275,7 +293,10 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
               <button
                 type="button"
                 className="topbar-action-btn"
-                onClick={() => setActiveView('staff_list')}
+                onClick={() => {
+                  setActiveView('staff_list')
+                  setExpandedGroup('staff')
+                }}
                 title="Quản lý nhân viên"
               >
                 👥 Nhân sự
@@ -314,6 +335,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
                     className="dropdown-menu-item"
                     onClick={() => {
                       setActiveView('settings')
+                      setExpandedGroup(null)
                       setIsUserDropdownOpen(false)
                     }}
                   >
@@ -325,6 +347,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
                     className="dropdown-menu-item"
                     onClick={() => {
                       setActiveView('staff_list')
+                      setExpandedGroup('staff')
                       setIsUserDropdownOpen(false)
                     }}
                   >
@@ -375,7 +398,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
           {activeView === 'customers_list' && <CustomersManagementScreen subType="list" />}
           {activeView === 'customers_groups' && <CustomersManagementScreen subType="groups" />}
 
-          {/* 7. Cài đặt (Optional quick settings) */}
+          {/* 7. Thiết lập quán */}
           {activeView === 'settings' && <StoreSettingsScreen />}
         </main>
       </div>

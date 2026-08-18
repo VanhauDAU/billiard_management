@@ -868,8 +868,9 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-left: 28px;
-  margin-top: 2px;
+  padding-left: 14px;
+  margin: 2px 0 4px 18px;
+  border-left: 2px solid #e2e8f0;
   animation: submenuFadeIn 0.15s ease-out;
 }
 
@@ -887,15 +888,15 @@
 .admin-nav-subitem-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  justify-content: space-between;
+  padding: 6px 10px;
   border: none;
   background: transparent;
   border-radius: 6px;
   cursor: pointer;
   color: #64748b;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   text-align: left;
   position: relative;
   transition: all 0.15s ease;
@@ -912,25 +913,28 @@
   font-weight: 700;
 }
 
-.subitem-icon {
-  font-size: 14px;
-}
-
 .subitem-label {
   flex: 1;
 }
 
 .subitem-active-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #2563eb;
 }
 
 /* Sidebar Footer */
 .admin-sidebar-footer {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-top: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-settings-pinned-btn {
+  width: 100%;
 }
 
 .admin-collapse-toggle-btn {
@@ -942,7 +946,7 @@
   border: 1px solid #e2e8f0;
   background: #ffffff;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 600;
   cursor: pointer;
