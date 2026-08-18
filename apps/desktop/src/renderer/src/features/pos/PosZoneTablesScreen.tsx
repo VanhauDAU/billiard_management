@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 
 interface TableItem {
   id: string
@@ -62,16 +63,27 @@ export function PosZoneTablesScreen(): React.JSX.Element {
       duration: '03:57',
       itemsCount: 2,
       currentAmount: 105000,
-      items: [{ name: 'Sting dâu', quantity: 2, price: 18000 }]
+      items: [{ name: 'Sting Dâu', quantity: 2, price: 18000 }]
     },
     { id: 't10', number: '10', area: 'Khu vực 1', status: 'available' },
     { id: 't11', number: '0023', area: 'Khu vực 1', status: 'available' }
   ])
 
-  // Modals
+  // Modals state
   const [selectedTable, setSelectedTable] = useState<TableItem | null>(null)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
   const [isAddFoodModalOpen, setIsAddFoodModalOpen] = useState(false)
+
+  const menuItems = [
+    { name: 'Redbull Thái (Bò húc)', price: 25000, cat: 'Nước' },
+    { name: 'Sting Dâu tây đỏ', price: 18000, cat: 'Nước' },
+    { name: 'Cà phê sữa đá pha máy', price: 25000, cat: 'Cà phê' },
+    { name: 'Cà phê đen đá', price: 20000, cat: 'Cà phê' },
+    { name: 'Mì tôm trứng xúc xích', price: 35000, cat: 'Đồ ăn' },
+    { name: 'Khoai tây chiên giòn', price: 40000, cat: 'Đồ ăn' },
+    { name: 'Bia Heineken Silver', price: 30000, cat: 'Bia' },
+    { name: 'Bia Tiger Crystal', price: 28000, cat: 'Bia' }
+  ]
 
   const emptyCount = tables.filter((t) => t.status === 'available').length
   const totalCount = tables.length
@@ -88,6 +100,7 @@ export function PosZoneTablesScreen(): React.JSX.Element {
   }
 
   const handleStartTable = (tableId: string) => {
+    const target = tables.find((t) => t.id === tableId)
     setTables((prev) =>
       prev.map((t) =>
         t.id === tableId
@@ -103,6 +116,9 @@ export function PosZoneTablesScreen(): React.JSX.Element {
       )
     )
     setIsActionModalOpen(false)
+    toast.success(`Đã mở Bàn ${target?.number || ''} thành công!`, {
+      description: 'Bắt đầu tính giờ chơi tự động'
+    })
   }
 
   const handleAddFoodItem = (itemName: string, price: number) => {
@@ -134,9 +150,13 @@ export function PosZoneTablesScreen(): React.JSX.Element {
     )
     setIsAddFoodModalOpen(false)
     setIsActionModalOpen(false)
+    toast.info(`Đã thêm "${itemName}" vào Bàn ${selectedTable.number}`, {
+      description: `Đơn giá: ${price.toLocaleString('vi-VN')} đ`
+    })
   }
 
   const handleCheckoutTable = (tableId: string) => {
+    const target = tables.find((t) => t.id === tableId)
     if (confirm(`Xác nhận thanh toán và đóng bàn cho Bàn ${selectedTable?.number}?`)) {
       setTables((prev) =>
         prev.map((t) =>
@@ -153,6 +173,9 @@ export function PosZoneTablesScreen(): React.JSX.Element {
         )
       )
       setIsActionModalOpen(false)
+      toast.success(`Thanh toán & Đóng Bàn ${target?.number || ''} thành công!`, {
+        description: `Tổng tiền: ${(target?.currentAmount || 0).toLocaleString('vi-VN')} đ`
+      })
     }
   }
 
@@ -363,34 +386,24 @@ export function PosZoneTablesScreen(): React.JSX.Element {
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[
-                { name: 'Redbull Thái lon', price: 25000 },
-                { name: 'Sting dâu tây đỏ', price: 18000 },
-                { name: 'Cà phê sữa đá', price: 25000 },
-                { name: 'Cà phê đen đá', price: 20000 },
-                { name: 'Mì tôm 2 trứng xúc xích', price: 35000 },
-                { name: 'Thuốc lá Craven A', price: 30000 },
-                { name: 'Nước suối Aquafina', price: 10000 }
-              ].map((food, idx) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
+              {menuItems.map((food, idx) => (
                 <button
                   key={idx}
                   type="button"
+                  className="admin-btn-secondary"
                   style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '10px 14px',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    background: '#fff',
-                    cursor: 'pointer',
-                    fontSize: '13.5px'
+                    justifyContent: 'space-between',
+                    padding: '10px 14px'
                   }}
                   onClick={() => handleAddFoodItem(food.name, food.price)}
                 >
-                  <span>{food.name}</span>
-                  <strong style={{ color: '#2563eb' }}>{food.price.toLocaleString('vi-VN')} đ</strong>
+                  <span style={{ fontWeight: 600 }}>{food.name}</span>
+                  <span style={{ fontWeight: 700, color: '#0066ff' }}>
+                    {food.price.toLocaleString('vi-VN')} đ
+                  </span>
                 </button>
               ))}
             </div>

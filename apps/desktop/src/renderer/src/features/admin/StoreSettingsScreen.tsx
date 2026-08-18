@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
+import { toast } from 'sonner'
+import { StoreInfoSettingScreen } from './StoreInfoSettingScreen'
 
 type SettingModalKey =
-  | 'store_info'
   | 'account'
   | 'tables_zone'
   | 'pricing'
@@ -14,13 +15,8 @@ type SettingModalKey =
   | null
 
 export function StoreSettingsScreen(): React.JSX.Element {
+  const [currentSubView, setCurrentSubView] = useState<'hub' | 'store_info'>('hub')
   const [activeModal, setActiveModal] = useState<SettingModalKey>(null)
-
-  // Store form state
-  const [storeName, setStoreName] = useState('Billiard Club Sài Gòn')
-  const [phone, setPhone] = useState('0901 234 567')
-  const [address, setAddress] = useState('123 Nguyễn Văn Cừ, Phường 4, Quận 5, TP. Hồ Chí Minh')
-  const [wifiPassword, setWifiPassword] = useState('billiard8888')
 
   // Printer form state
   const [printerPaperSize, setPrinterPaperSize] = useState('80mm')
@@ -33,17 +29,14 @@ export function StoreSettingsScreen(): React.JSX.Element {
   const [accountNumber, setAccountNumber] = useState('999988886666')
   const [accountName, setAccountName] = useState('LE VAN HAU')
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3000)
-  }
-
   const handleSaveModal = (e: React.FormEvent) => {
     e.preventDefault()
     setActiveModal(null)
-    showToast('Đã lưu thành công cấu hình thiết lập!')
+    toast.success('Đã lưu thành công cấu hình thiết lập!')
+  }
+
+  if (currentSubView === 'store_info') {
+    return <StoreInfoSettingScreen onBack={() => setCurrentSubView('hub')} />
   }
 
   return (
@@ -56,19 +49,12 @@ export function StoreSettingsScreen(): React.JSX.Element {
         </p>
       </div>
 
-      {toastMessage && (
-        <div className="alert-box alert-success" style={{ animation: 'dropdownFadeIn 0.2s ease' }}>
-          <span>✅</span>
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Section 1: Thiết lập thông tin */}
       <div className="settings-section-card">
         <h3 className="settings-section-title">Thiết lập thông tin</h3>
         <div className="settings-tiles-grid">
           {/* Tile 1: Thông tin cửa hàng */}
-          <div className="settings-tile-item" onClick={() => setActiveModal('store_info')}>
+          <div className="settings-tile-item" onClick={() => setCurrentSubView('store_info')}>
             <div className="tile-icon-box bg-blue-50">🏪</div>
             <div className="tile-content">
               <strong className="tile-title">Thông tin cửa hàng</strong>
@@ -175,64 +161,7 @@ export function StoreSettingsScreen(): React.JSX.Element {
           MODALS CHO TỪNG MỤC THIẾT LẬP CHI TIẾT
           ========================================================= */}
 
-      {/* 1. Modal Thông tin cửa hàng */}
-      {activeModal === 'store_info' && (
-        <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-card" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">🏪 Thông Tin Cửa Hàng</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setActiveModal(null)}>✕</button>
-            </div>
-            <form onSubmit={handleSaveModal} className="admin-modal-form">
-              <div className="admin-form-group">
-                <label className="admin-form-label">Tên quán / Cửa hàng *</label>
-                <input
-                  type="text"
-                  className="admin-form-input"
-                  value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-form-label">Hotline liên hệ *</label>
-                <input
-                  type="text"
-                  className="admin-form-input"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-form-label">Địa chỉ quán *</label>
-                <input
-                  type="text"
-                  className="admin-form-input"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-form-label">Mật khẩu Wifi (In trên bill)</label>
-                <input
-                  type="text"
-                  className="admin-form-input"
-                  value={wifiPassword}
-                  onChange={(e) => setWifiPassword(e.target.value)}
-                />
-              </div>
-              <div className="admin-modal-actions">
-                <button type="button" className="admin-btn-secondary" onClick={() => setActiveModal(null)}>Đóng</button>
-                <button type="submit" className="admin-btn-primary">Lưu thông tin</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Modal Thiết lập in */}
+      {/* 1. Modal Thiết lập in */}
       {activeModal === 'printer' && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="modal-card" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>

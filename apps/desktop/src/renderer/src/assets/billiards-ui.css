@@ -2647,3 +2647,217 @@
   align-items: center;
   gap: 6px;
 }
+
+/* =========================================================
+   STORE INFO SETTINGS PAGE (SAPO FNB DETAIL SCREEN)
+   ========================================================= */
+.store-info-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.store-info-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.store-info-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.store-info-back-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.store-info-main-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.store-info-content-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 32px;
+  align-items: flex-start;
+  margin-top: 8px;
+}
+
+@media (max-width: 860px) {
+  .store-info-content-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.store-info-meta-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.store-info-section-heading {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.store-info-section-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.store-info-code-badge {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.store-info-code-badge strong {
+  font-style: normal;
+  color: #0f172a;
+}
+
+.store-info-form-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.store-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.store-form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.store-form-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.text-danger {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.store-info-tooltip-icon {
+  font-size: 13px;
+  cursor: help;
+}
+
+.store-form-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.store-form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .store-form-row-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.store-form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: #1e293b;
+  font-family: inherit;
+  outline: none;
+  background: #ffffff;
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.store-form-textarea:focus,
+.store-form-input:focus,
+.store-form-select:focus {
+  border-color: #0066ff;
+  box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.12);
+}
+
+.store-form-input,
+.store-form-select {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: #1e293b;
+  outline: none;
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.store-info-footer-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.store-btn-save {
+  min-width: 90px;
+  height: 40px;
+  background: #0088ff;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.store-btn-save:hover {
+  background: #0077e6;
+  transform: translateY(-1px);
+}
