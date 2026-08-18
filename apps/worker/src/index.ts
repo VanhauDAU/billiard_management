@@ -11,6 +11,7 @@ import { posRoutes } from "./routes/pos";
 
 import { authRoutes } from "./routes/auth";
 import { staffRoutes } from "./routes/staff";
+import { categoryRoutes } from "./routes/categories";
 
 export { StoreDurableObject } from "./durable-objects/store-durable-object";
 
@@ -134,5 +135,7 @@ app.route("/api/pos", posRoutes);
 app.route("/api/auth", authRoutes);
 
 app.route("/api/staff", staffRoutes);
+
+app.route("/api/categories", categoryRoutes);
 
 export default app;

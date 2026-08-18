@@ -1,5 +1,7 @@
 import type {
   AuthSessionResponse,
+  Category,
+  CategoryListResponse,
   ChangePasswordRequest,
   ChangePinRequest,
   EmployeeListResponse,
@@ -159,6 +161,49 @@ export type DesktopUpdateStaffResult =
     }
 
 export type DesktopDeleteStaffResult =
+  | {
+      ok: true
+    }
+  | {
+      ok: false
+      error: string
+      message?: string
+    }
+
+// Category management results
+export type DesktopCategoryListResult =
+  | {
+      ok: true
+      data: CategoryListResponse
+    }
+  | {
+      ok: false
+      error: string
+    }
+
+export type DesktopCreateCategoryResult =
+  | {
+      ok: true
+      data: { ok: true; category: Category }
+    }
+  | {
+      ok: false
+      error: string
+      message?: string
+    }
+
+export type DesktopUpdateCategoryResult =
+  | {
+      ok: true
+      data: { ok: true; category: Category }
+    }
+  | {
+      ok: false
+      error: string
+      message?: string
+    }
+
+export type DesktopDeleteCategoryResult =
   | {
       ok: true
     }

@@ -1,11 +1,14 @@
 import type { ActivateDesktopDeviceInput, DesktopDeviceState } from '../shared/device-api'
 import type {
   DesktopAuthState,
+  DesktopCategoryListResult,
   DesktopChangePasswordInput,
   DesktopChangePasswordResult,
   DesktopChangePinInput,
   DesktopChangePinResult,
+  DesktopCreateCategoryResult,
   DesktopCreateStaffResult,
+  DesktopDeleteCategoryResult,
   DesktopDeleteStaffResult,
   DesktopEmployeeListResult,
   DesktopLoginInput,
@@ -15,12 +18,15 @@ import type {
   DesktopPinLoginInput,
   DesktopPinLoginResult,
   DesktopStaffListResult,
+  DesktopUpdateCategoryResult,
   DesktopUpdateStaffResult,
   DesktopVerifyPinInput,
   DesktopVerifyPinResult
 } from '../shared/auth-api'
 import type {
+  CreateCategoryRequest,
   CreateStaffRequest,
+  UpdateCategoryRequest,
   UpdateStaffRequest
 } from '@billiards/contracts'
 import type {
@@ -67,8 +73,16 @@ export interface DesktopApi {
     delete(id: string): Promise<DesktopDeleteStaffResult>
   }
 
+  categories: {
+    list(): Promise<DesktopCategoryListResult>
+    create(data: CreateCategoryRequest): Promise<DesktopCreateCategoryResult>
+    update(id: string, data: UpdateCategoryRequest): Promise<DesktopUpdateCategoryResult>
+    delete(id: string): Promise<DesktopDeleteCategoryResult>
+  }
+
   tables: {
     getConfiguration(): Promise<DesktopTableConfigurationResult>
     executeCommand(input: DesktopTableCommandInput): Promise<DesktopTableCommandResult>
   }
 }
+

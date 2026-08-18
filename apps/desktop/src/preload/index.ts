@@ -35,6 +35,13 @@ const desktopApi = Object.freeze({
     delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.staffDelete, { id })
   }),
 
+  categories: Object.freeze({
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.categoriesList),
+    create: (data) => ipcRenderer.invoke(IPC_CHANNELS.categoriesCreate, data),
+    update: (id, data) => ipcRenderer.invoke(IPC_CHANNELS.categoriesUpdate, { id, data }),
+    delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.categoriesDelete, { id })
+  }),
+
   tables: Object.freeze({
     getConfiguration: () => ipcRenderer.invoke(IPC_CHANNELS.tablesGetConfiguration),
     executeCommand: (input) => ipcRenderer.invoke(IPC_CHANNELS.tablesExecuteCommand, input)

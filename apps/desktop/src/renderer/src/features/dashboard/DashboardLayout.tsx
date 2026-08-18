@@ -5,6 +5,7 @@ import { OverviewDashboard } from '../admin/OverviewDashboard'
 import { ReportsScreen } from '../admin/ReportsScreen'
 import { InvoicesHistoryScreen } from '../admin/InvoicesHistoryScreen'
 import { ProductsManagementScreen } from '../admin/ProductsManagementScreen'
+import { CategoriesManagementScreen } from '../admin/CategoriesManagementScreen'
 import { StaffManagementScreen } from '../staff/StaffManagementScreen'
 import { RolesManagementScreen } from '../admin/RolesManagementScreen'
 import { CustomersManagementScreen } from '../admin/CustomersManagementScreen'
@@ -401,7 +402,7 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
 
           {/* 4. Mặt hàng */}
           {activeView === 'products_list' && <ProductsManagementScreen subType="list" />}
-          {activeView === 'products_categories' && <ProductsManagementScreen subType="categories" />}
+          {activeView === 'products_categories' && <CategoriesManagementScreen />}
 
           {/* 5. Nhân viên */}
           {activeView === 'staff_list' && <StaffManagementScreen />}

@@ -1,17 +1,22 @@
 import type {
+  CreateCategoryRequest,
   CreateStaffRequest,
   LoginResponse,
   PinLoginRequest,
+  UpdateCategoryRequest,
   UpdateStaffRequest
 } from '@billiards/contracts'
 
 import type {
   DesktopAuthState,
+  DesktopCategoryListResult,
   DesktopChangePasswordInput,
   DesktopChangePasswordResult,
   DesktopChangePinInput,
   DesktopChangePinResult,
+  DesktopCreateCategoryResult,
   DesktopCreateStaffResult,
+  DesktopDeleteCategoryResult,
   DesktopDeleteStaffResult,
   DesktopEmployeeListResult,
   DesktopLoginInput,
@@ -20,6 +25,7 @@ import type {
   DesktopPermissionResult,
   DesktopPinLoginResult,
   DesktopStaffListResult,
+  DesktopUpdateCategoryResult,
   DesktopUpdateStaffResult,
   DesktopVerifyPinInput,
   DesktopVerifyPinResult
@@ -29,15 +35,19 @@ import {
   BackendApiError,
   changePasswordHttp,
   changePinHttp,
+  createCategoryHttp,
   createStaffHttp,
+  deleteCategoryHttp,
   deleteStaffHttp,
   getAuthEmployees,
   getAuthPermissions,
   getAuthSession,
+  listCategoriesHttp,
   listStaffHttp,
   loginEmployeeWithPin,
   loginWithPasswordHttp,
   logoutAuthSession,
+  updateCategoryHttp,
   updateStaffHttp,
   verifyPinHttp
 } from '../api/backend-client'
@@ -402,4 +412,78 @@ export async function changeDesktopPin(
     return { ok: false, error: 'failed', message: 'Cập nhật mã PIN thất bại. Vui lòng kiểm tra lại dịch vụ.' }
   }
 }
+
+// =========================================================
+// CATEGORY MANAGEMENT IPC BRIDGES
+// =========================================================
+
+export async function listDesktopCategories(): Promise<DesktopCategoryListResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out' }
+  }
+
+  try {
+    const res = await listCategoriesHttp(sessionCredential.sessionToken)
+    return { ok: true, data: res }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'failed' }
+  }
+}
+
+export async function createDesktopCategory(
+  data: CreateCategoryRequest
+): Promise<DesktopCreateCategoryResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out', message: 'Chưa đăng nhập' }
+  }
+
+  try {
+    const res = await createCategoryHttp(sessionCredential.sessionToken, data)
+    return { ok: true, data: res }
+  } catch (error) {
+    const message =
+      error instanceof BackendApiError && error.code === 'category_name_already_exists'
+        ? 'Tên danh mục đã tồn tại trong cửa hàng'
+        : 'Không thể tạo danh mục mới'
+    return { ok: false, error: 'creation_failed', message }
+  }
+}
+
+export async function updateDesktopCategory(
+  id: string,
+  data: UpdateCategoryRequest
+): Promise<DesktopUpdateCategoryResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out', message: 'Chưa đăng nhập' }
+  }
+
+  try {
+    const res = await updateCategoryHttp(sessionCredential.sessionToken, id, data)
+    return { ok: true, data: res }
+  } catch (error) {
+    const message =
+      error instanceof BackendApiError && error.code === 'category_name_already_exists'
+        ? 'Tên danh mục bị trùng lặp'
+        : 'Không thể cập nhật danh mục'
+    return { ok: false, error: 'update_failed', message }
+  }
+}
+
+export async function deleteDesktopCategory(id: string): Promise<DesktopDeleteCategoryResult> {
+  const sessionCredential = await loadAuthSessionCredential().catch(() => null)
+  if (!sessionCredential) {
+    return { ok: false, error: 'signed_out', message: 'Chưa đăng nhập' }
+  }
+
+  try {
+    await deleteCategoryHttp(sessionCredential.sessionToken, id)
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: 'delete_failed', message: 'Không thể xóa danh mục' }
+  }
+}
+
 

@@ -4,10 +4,14 @@ import {
   ActivateDeviceResponseSchema,
   ApiHealthResponseSchema,
   AuthSessionResponseSchema,
+  Category,
+  CategoryListResponse,
+  CategoryListResponseSchema,
   ChangeCredentialResponse,
   ChangeCredentialResponseSchema,
   ChangePasswordRequest,
   ChangePinRequest,
+  CreateCategoryRequest,
   CreateStaffRequest,
   DeviceContextSchema,
   EmployeeListResponseSchema,
@@ -22,6 +26,7 @@ import {
   StaffListResponseSchema,
   TableCommandApiResponseSchema,
   TableConfigurationResponseSchema,
+  UpdateCategoryRequest,
   UpdateStaffRequest,
   VerifyPinRequest,
   VerifyPinResponse,
@@ -303,6 +308,73 @@ export async function deleteStaffHttp(
   id: string
 ): Promise<{ ok: true }> {
   const body = await requestJson(`/api/staff/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'X-Auth-Session': sessionToken
+    }
+  })
+
+  return body as { ok: true }
+}
+
+// =========================================================
+// CATEGORY MANAGEMENT HTTP
+// =========================================================
+
+export async function listCategoriesHttp(sessionToken: string): Promise<CategoryListResponse> {
+  const body = await requestJson('/api/categories', {
+    method: 'GET',
+    headers: {
+      'X-Auth-Session': sessionToken
+    }
+  })
+
+  const parsed = CategoryListResponseSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('invalid_category_list_response')
+  }
+
+  return parsed.data
+}
+
+export async function createCategoryHttp(
+  sessionToken: string,
+  data: CreateCategoryRequest
+): Promise<{ ok: true; category: Category }> {
+  const body = await requestJson('/api/categories', {
+    method: 'POST',
+    headers: {
+      'X-Auth-Session': sessionToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+
+  return body as { ok: true; category: Category }
+}
+
+export async function updateCategoryHttp(
+  sessionToken: string,
+  id: string,
+  data: UpdateCategoryRequest
+): Promise<{ ok: true; category: Category }> {
+  const body = await requestJson(`/api/categories/${id}`, {
+    method: 'PUT',
+    headers: {
+      'X-Auth-Session': sessionToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+
+  return body as { ok: true; category: Category }
+}
+
+export async function deleteCategoryHttp(
+  sessionToken: string,
+  id: string
+): Promise<{ ok: true }> {
+  const body = await requestJson(`/api/categories/${id}`, {
     method: 'DELETE',
     headers: {
       'X-Auth-Session': sessionToken

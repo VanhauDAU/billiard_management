@@ -20,6 +20,11 @@ export const IPC_CHANNELS = {
   staffUpdate: 'staff:update',
   staffDelete: 'staff:delete',
 
+  categoriesList: 'categories:list',
+  categoriesCreate: 'categories:create',
+  categoriesUpdate: 'categories:update',
+  categoriesDelete: 'categories:delete',
+
   tablesGetConfiguration: 'tables:get-configuration',
   tablesExecuteCommand: 'tables:execute-command'
 } as const
