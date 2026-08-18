@@ -30,7 +30,9 @@ export default defineConfig({
 
         miniflare: {
           bindings: {
-            TEST_MIGRATIONS: migrations
+            TEST_MIGRATIONS: migrations,
+            SYSTEM_DIAGNOSTICS_TOKEN:
+              'test-system-diagnostics-token-0123456789abcdef'
           }
         }
       }
