@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import type { DesktopAuthState } from '../../../../shared/auth-api'
 import loginIllustration from '../../assets/login-illustration.png'
+import logoBlack from '../../assets/logo_black_1200x400.svg'
 
 interface LoginPageProps {
   onLoginSuccess: (authState: DesktopAuthState) => void
@@ -81,10 +82,10 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps): React.JSX.Element
 
           <div className="sapo-intro-text">
             <h3 className="sapo-intro-title">
-              ProPOS – Phần mềm quản lý Nhà hàng và Dịch vụ dễ sử dụng nhất
+              Phần mềm quản lý Bida & Dịch vụ chuyên nghiệp
             </h3>
             <p className="sapo-intro-desc">
-              Tính tiền nhanh chóng & vận hành ổn định với phần mềm quản lý nhà hàng và dịch vụ được 230,000+ khách hàng tin dùng
+              Tính tiền giờ chuẩn xác, gọi món tại bàn, kiểm soát doanh thu chặt chẽ và vận hành ổn định
             </p>
           </div>
         </div>
@@ -92,10 +93,9 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps): React.JSX.Element
         {/* Right column: Login Card */}
         <div className="sapo-login-right">
           <div className="sapo-login-card">
-            {/* Sapo Logo */}
-            <div className="sapo-brand-logo">
-              <span className="sapo-logo-text-green">Pro</span>
-              <span className="sapo-logo-text-blue">POS</span>
+            {/* Brand Logo */}
+            <div className="sapo-brand-logo-container">
+              <img src={logoBlack} alt="Brand Logo" className="sapo-brand-logo-img" />
             </div>
 
             {/* Navigation Tabs */}

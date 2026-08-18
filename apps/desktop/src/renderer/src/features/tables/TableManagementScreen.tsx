@@ -124,17 +124,14 @@ export function TableManagementScreen({
                     switch (
                     result.error
                     ) {
-                        case 'signed_out':
-                            await onSignedOut()
-
-                            return
-
-
                         case 'device_not_ready':
-                            await onDeviceNotReady()
-
+                            setState({
+                                status:
+                                    'error',
+                                message:
+                                    'Thiết bị POS chưa kích hoạt khóa phần cứng hoặc đang ở chế độ ngoại tuyến.'
+                            })
                             return
-
 
                         case 'permission_denied':
                             setState({
@@ -142,9 +139,8 @@ export function TableManagementScreen({
                                     'error',
 
                                 message:
-                                    'Bạn không còn quyền xem danh sách bàn.'
+                                    'Bạn không có quyền xem hoặc quản lý cấu hình bàn.'
                             })
-
                             return
 
 

@@ -1,33 +1,53 @@
 import React, { useEffect, useState } from 'react'
 import type { DesktopAuthState } from '../../../../shared/auth-api'
+import logoBlack from '../../assets/logo_black_1200x400.svg'
+import { OverviewDashboard } from '../admin/OverviewDashboard'
+import { ReportsScreen } from '../admin/ReportsScreen'
+import { InvoicesHistoryScreen } from '../admin/InvoicesHistoryScreen'
+import { ProductsManagementScreen } from '../admin/ProductsManagementScreen'
 import { StaffManagementScreen } from '../staff/StaffManagementScreen'
+import { RolesManagementScreen } from '../admin/RolesManagementScreen'
+import { CustomersManagementScreen } from '../admin/CustomersManagementScreen'
+import { StoreSettingsScreen } from '../admin/StoreSettingsScreen'
 
 interface DashboardLayoutProps {
   authState: DesktopAuthState
   onLogout: () => void
 }
 
-type TabKey = 'pos' | 'staff' | 'products' | 'customers' | 'invoices' | 'reports'
+type AdminViewKey =
+  | 'overview'
+  | 'reports_revenue'
+  | 'reports_products'
+  | 'reports_staff'
+  | 'invoices_sales'
+  | 'products_list'
+  | 'products_menu'
+  | 'products_categories'
+  | 'staff_list'
+  | 'staff_roles'
+  | 'customers_list'
+  | 'customers_groups'
+  | 'settings'
+
+interface NavGroup {
+  key: string
+  label: string
+  icon: string
+  children?: Array<{
+    key: AdminViewKey
+    label: string
+  }>
+}
 
 export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState<TabKey>('pos')
+  const [activeView, setActiveView] = useState<AdminViewKey>('overview')
   const [currentTime, setCurrentTime] = useState<string>(new Date().toLocaleTimeString('vi-VN'))
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
-  // Demo tables state for POS
-  const [tables, setTables] = useState([
-    { id: 't1', name: 'Bàn 01 - Pool 9-Ball', type: 'Pool', status: 'playing', duration: '01:45:20', amount: '125,000đ', items: 3 },
-    { id: 't2', name: 'Bàn 02 - Pool 9-Ball', type: 'Pool', status: 'available', duration: '00:00:00', amount: '0đ', items: 0 },
-    { id: 't3', name: 'Bàn 03 - Carom 3C', type: 'Carom', status: 'playing', duration: '00:52:10', amount: '65,000đ', items: 1 },
-    { id: 't4', name: 'Bàn 04 - Libre', type: 'Libre', status: 'available', duration: '00:00:00', amount: '0đ', items: 0 },
-    { id: 't5', name: 'Bàn 05 - Pool 9-Ball', type: 'Pool', status: 'playing', duration: '02:10:05', amount: '180,000đ', items: 4 },
-    { id: 't6', name: 'Bàn 06 - Carom 3C', type: 'Carom', status: 'available', duration: '00:00:00', amount: '0đ', items: 0 }
-  ])
-
-  // Verify PIN modal state for sensitive actions
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false)
-  const [pinInput, setPinInput] = useState('')
-  const [pinError, setPinError] = useState<string | null>(null)
-  const [pinSuccessActionName, setPinSuccessActionName] = useState<string>('')
+  // Single accordion state: Open one group at a time
+  const [expandedGroup, setExpandedGroup] = useState<string | null>('reports')
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -39,332 +59,365 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
   const user = authState.status === 'authenticated' ? authState.user : null
   const store = authState.status === 'authenticated' ? authState.store : null
 
-  const handleOpenPinVerification = (actionName: string) => {
-    setPinInput('')
-    setPinError(null)
-    setPinSuccessActionName(actionName)
-    setIsPinModalOpen(true)
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroup((prev) => (prev === groupKey ? null : groupKey))
   }
 
-  const handleVerifyPinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!/^\d{4}$/.test(pinInput)) {
-      setPinError('Vui lòng nhập đúng 4 chữ số PIN.')
+  const handleGroupClick = (group: NavGroup) => {
+    if (isSidebarCollapsed) {
+      if (group.children && group.children.length > 0) {
+        setActiveView(group.children[0].key)
+      }
       return
     }
-
-    try {
-      const res = await window.desktopApi.auth.verifyPin({ pin: pinInput })
-      if (res.ok) {
-        setIsPinModalOpen(false)
-        alert(`✅ Xác thực mã PIN thành công cho thao tác: "${pinSuccessActionName}"`)
-      } else {
-        setPinError(res.message || 'Mã PIN không đúng.')
-      }
-    } catch {
-      setPinError('Lỗi xác thực máy chủ.')
-    }
+    toggleGroup(group.key)
   }
 
+  // Define sidebar menu structure according to exact user requirements
+  const menuGroups: NavGroup[] = [
+    {
+      key: 'overview',
+      label: 'Tổng quan',
+      icon: '📊'
+      // No children for Overview
+    },
+    {
+      key: 'reports',
+      label: 'Báo cáo',
+      icon: '📈',
+      children: [
+        { key: 'reports_revenue', label: 'Báo cáo doanh thu' },
+        { key: 'reports_products', label: 'Báo cáo mặt hàng' },
+        { key: 'reports_staff', label: 'Báo cáo nhân viên' }
+      ]
+    },
+    {
+      key: 'invoices',
+      label: 'Hóa đơn',
+      icon: '🧾',
+      children: [
+        { key: 'invoices_sales', label: 'Hóa đơn bán hàng' }
+      ]
+    },
+    {
+      key: 'products',
+      label: 'Mặt hàng',
+      icon: '🍽️',
+      children: [
+        { key: 'products_list', label: 'Danh sách mặt hàng' },
+        { key: 'products_menu', label: 'Thực đơn' },
+        { key: 'products_categories', label: 'Danh mục' }
+      ]
+    },
+    {
+      key: 'staff',
+      label: 'Nhân viên',
+      icon: '👥',
+      children: [
+        { key: 'staff_list', label: 'Danh sách nhân viên' },
+        { key: 'staff_roles', label: 'Vai trò nhân viên' }
+      ]
+    },
+    {
+      key: 'customers',
+      label: 'Khách hàng',
+      icon: '🤝',
+      children: [
+        { key: 'customers_list', label: 'Danh sách khách hàng' },
+        { key: 'customers_groups', label: 'Nhóm khách hàng' }
+      ]
+    }
+  ]
+
   return (
-    <div className="billiard-app-container">
-      {/* Top Header */}
-      <header className="dashboard-header">
-        <div className="header-brand">
-          <div style={{ fontSize: '22px' }}>🎱</div>
-          <div className="store-badge">
-            <span className="status-dot"></span>
-            <span>{store?.name || 'Billiard Club'}</span>
-          </div>
-          <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>⏰ {currentTime}</span>
-        </div>
-
-        <nav className="header-nav">
-          <button
-            type="button"
-            className={`nav-item-btn ${activeTab === 'pos' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pos')}
-          >
-            🎱 Sơ đồ Bàn & POS
-          </button>
-          <button
-            type="button"
-            className={`nav-item-btn ${activeTab === 'staff' ? 'active' : ''}`}
-            onClick={() => setActiveTab('staff')}
-          >
-            👥 Nhân viên
-          </button>
-          <button
-            type="button"
-            className={`nav-item-btn ${activeTab === 'products' ? 'active' : ''}`}
-            onClick={() => setActiveTab('products')}
-          >
-            🍽️ Thực đơn & Mặt hàng
-          </button>
-          <button
-            type="button"
-            className={`nav-item-btn ${activeTab === 'customers' ? 'active' : ''}`}
-            onClick={() => setActiveTab('customers')}
-          >
-            🤝 Khách hàng & Công nợ
-          </button>
-          <button
-            type="button"
-            className={`nav-item-btn ${activeTab === 'invoices' ? 'active' : ''}`}
-            onClick={() => setActiveTab('invoices')}
-          >
-            🧾 Hóa đơn
-          </button>
-          <button
-            type="button"
-            className={`nav-item-btn ${activeTab === 'reports' ? 'active' : ''}`}
-            onClick={() => setActiveTab('reports')}
-          >
-            📊 Báo cáo
-          </button>
-        </nav>
-
-        <div className="header-user">
-          <div className="user-info-tag">
-            <span className="user-name">{user?.displayName || 'Người dùng'}</span>
-            <span className="user-role-badge">{user?.roleName || 'Staff'}</span>
-          </div>
-          <button type="button" className="btn-logout" onClick={onLogout} title="Đăng xuất">
-            🚪 Thoát
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="dashboard-content">
-        {activeTab === 'staff' && <StaffManagementScreen />}
-
-        {activeTab === 'pos' && (
-          <div className="content-card">
-            <div className="card-header-flex">
-              <div>
-                <h2 className="card-title">🎱 Sơ đồ Bàn Bida & Tính giờ</h2>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13.5px' }}>
-                  Theo dõi thời gian thực, mở bàn, gọi món và thanh toán
-                </p>
+    <div className={`admin-layout-wrapper ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {/* Modern Left Sidebar */}
+      <aside className="admin-sidebar">
+        {/* Brand Header with Logo on Left and Collapse Button on Right */}
+        <div className="admin-sidebar-brand">
+          {!isSidebarCollapsed ? (
+            <>
+              <div className="sidebar-brand-logo-wrap">
+                <img src={logoBlack} alt="Brand Logo" className="admin-brand-logo-img" />
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="sidebar-header-toggle-btn"
+                onClick={() => setIsSidebarCollapsed(true)}
+                title="Thu dọn sidebar chỉ cần icon"
+              >
+                <span>◀</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="sidebar-header-toggle-btn collapsed"
+              onClick={() => setIsSidebarCollapsed(false)}
+              title="Mở rộng sidebar"
+            >
+              <span>▶</span>
+            </button>
+          )}
+        </div>
+
+        {/* Store Context Badge */}
+        {!isSidebarCollapsed && (
+          <div className="admin-sidebar-store">
+            <div className="store-status-dot"></div>
+            <div className="store-text-box">
+              <strong>{store?.name || 'Billiard Club Sài Gòn'}</strong>
+              <small>Mã quán: {store?.slug || 'SG01'}</small>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Menu with Exclusive Accordion Dropdowns */}
+        <nav className="admin-sidebar-nav">
+          {menuGroups.map((group) => {
+            // Case 1: Single item without children (Tổng quan)
+            if (!group.children || group.children.length === 0) {
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  className={`admin-nav-btn ${activeView === 'overview' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveView('overview')
+                    setExpandedGroup(null)
+                  }}
+                  title={isSidebarCollapsed ? group.label : undefined}
+                >
+                  <span className="nav-btn-icon">{group.icon}</span>
+                  {!isSidebarCollapsed && (
+                    <span className="nav-btn-label" style={{ fontWeight: 700 }}>
+                      {group.label}
+                    </span>
+                  )}
+                  {activeView === 'overview' && <span className="nav-active-indicator"></span>}
+                </button>
+              )
+            }
+
+            // Case 2: Group with dropdown children
+            const isExpanded = expandedGroup === group.key
+            const isChildActive = group.children.some((c) => c.key === activeView)
+
+            return (
+              <div key={group.key} className="admin-nav-group-wrapper">
                 <button
                   type="button"
-                  className="btn-logout"
-                  onClick={() => handleOpenPinVerification('Hủy hóa đơn bàn')}
+                  className={`admin-nav-group-header ${isChildActive ? 'child-active' : ''}`}
+                  onClick={() => handleGroupClick(group)}
+                  title={isSidebarCollapsed ? group.label : undefined}
                 >
-                  🔒 Thử xác thực PIN 4 số
-                </button>
-              </div>
-            </div>
-
-            <div className="billiard-tables-grid">
-              {tables.map((t) => (
-                <div
-                  key={t.id}
-                  className={`billiard-table-card ${t.status === 'playing' ? 'table-card-active' : ''}`}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '15px' }}>{t.name}</strong>
-                    <span className={t.status === 'playing' ? 'table-badge-playing' : 'table-badge-available'}>
-                      {t.status === 'playing' ? '🟢 Đang chơi' : '⚪ Trống'}
-                    </span>
-                  </div>
-
-                  <div className="table-timer-display">{t.duration}</div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: '13px',
-                      color: '#64748b',
-                      margin: '10px 0'
-                    }}
-                  >
-                    <span>Dịch vụ: {t.items} món</span>
-                    <strong style={{ color: '#0f172a' }}>Tạm tính: {t.amount}</strong>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '14px' }}>
-                    {t.status === 'playing' ? (
-                      <>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          style={{ height: '36px', fontSize: '13px', background: '#10b981' }}
-                          onClick={() => alert(`Tính tiền cho ${t.name}`)}
-                        >
-                          💳 Thanh toán
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-logout"
-                          style={{ height: '36px', fontSize: '13px' }}
-                          onClick={() => alert(`Thêm món cho ${t.name}`)}
-                        >
-                          🍽️ Thêm món
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ height: '36px', fontSize: '13px', gridColumn: 'span 2' }}
-                        onClick={() => {
-                          setTables((prev) =>
-                            prev.map((item) =>
-                              item.id === t.id
-                                ? { ...item, status: 'playing', duration: '00:00:01', amount: '0đ' }
-                                : item
-                            )
-                          )
-                        }}
-                      >
-                        ⚡ Bắt đầu chơi (Mở bàn)
-                      </button>
+                  <div className="group-header-left">
+                    <span className="nav-btn-icon">{group.icon}</span>
+                    {!isSidebarCollapsed && (
+                      <span className="group-header-label">{group.label}</span>
                     )}
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                  {!isSidebarCollapsed && (
+                    <span className="group-chevron-icon">
+                      {isExpanded ? '▼' : '▶'}
+                    </span>
+                  )}
+                </button>
 
-        {activeTab === 'products' && (
-          <div className="content-card">
-            <div className="card-header-flex">
-              <div>
-                <h2 className="card-title">🍽️ Thực đơn, Danh mục & Mặt hàng</h2>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13.5px' }}>
-                  Quản lý các loại thực đơn (Đồ ăn, Đồ uống, Cafe, Ăn tại bàn, Mang đi) và phân loại
-                </p>
+                {/* Submenu Items (No icons for sleek minimalist look) */}
+                {isExpanded && !isSidebarCollapsed && (
+                  <div className="admin-nav-submenu">
+                    {group.children.map((child) => (
+                      <button
+                        key={child.key}
+                        type="button"
+                        className={`admin-nav-subitem-btn ${activeView === child.key ? 'active' : ''}`}
+                        onClick={() => setActiveView(child.key)}
+                      >
+                        <span className="subitem-label">{child.label}</span>
+                        {activeView === child.key && <span className="subitem-active-dot"></span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button type="button" className="btn-primary" style={{ width: 'auto', padding: '0 20px', height: '42px' }}>
-                ➕ Thêm Mặt hàng
-              </button>
-            </div>
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-              📦 Module Thực đơn & Mặt hàng: Đang sẵn sàng dữ liệu menu và danh mục theo quy chuẩn phân quyền.
-            </div>
-          </div>
-        )}
+            )
+          })}
+        </nav>
 
-        {activeTab === 'customers' && (
-          <div className="content-card">
-            <div className="card-header-flex">
-              <div>
-                <h2 className="card-title">🤝 Danh sách Khách hàng & Thu nợ</h2>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13.5px' }}>
-                  Quản lý khách hàng, nhóm khách hàng VIP/thành viên và thu nợ
-                </p>
-              </div>
-              <button type="button" className="btn-primary" style={{ width: 'auto', padding: '0 20px', height: '42px' }}>
-                ➕ Thêm Khách hàng
-              </button>
-            </div>
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-              👤 Module Khách hàng & Công nợ: Sẵn sàng cho nghiệp vụ quản lý khách và thu nợ.
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'invoices' && (
-          <div className="content-card">
-            <div className="card-header-flex">
-              <div>
-                <h2 className="card-title">🧾 Hóa đơn Bán hàng</h2>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13.5px' }}>
-                  Lịch sử hóa đơn, in biên lai, xuất Excel và hủy hóa đơn (có PIN)
-                </p>
-              </div>
-            </div>
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-              🧾 Module Hóa đơn: Danh sách hóa đơn bán hàng, in hóa đơn và đối soát.
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'reports' && (
-          <div className="content-card">
-            <div className="card-header-flex">
-              <div>
-                <h2 className="card-title">📊 Báo cáo Doanh thu & Thống kê</h2>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13.5px' }}>
-                  Báo cáo tổng hợp tiền giờ chơi, tiền dịch vụ ăn uống và hiệu suất ca
-                </p>
-              </div>
-            </div>
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-              📈 Module Báo cáo Doanh thu: Báo cáo trực quan theo ngày/tháng/ca.
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* Verify PIN Modal */}
-      {isPinModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsPinModalOpen(false)}>
-          <div className="modal-card" style={{ maxWidth: '380px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">🔒 Xác thực mã PIN 4 số</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setIsPinModalOpen(false)}>
-                ✕
-              </button>
-            </div>
-
-            <p style={{ fontSize: '13px', color: '#64748b', marginTop: 0 }}>
-              Thao tác "{pinSuccessActionName}" yêu cầu xác nhận mã PIN bảo mật của bạn.
-            </p>
-
-            {pinError && (
-              <div className="alert-box alert-danger">
-                <span>⚠️</span>
-                <span>{pinError}</span>
-              </div>
+        {/* Sidebar Footer: Pinned Settings Button */}
+        <div className="admin-sidebar-footer">
+          <button
+            type="button"
+            className={`admin-nav-btn admin-settings-pinned-btn ${activeView === 'settings' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveView('settings')
+              setExpandedGroup(null)
+            }}
+            title={isSidebarCollapsed ? 'Thiết lập' : undefined}
+          >
+            <span className="nav-btn-icon">⚙️</span>
+            {!isSidebarCollapsed && (
+              <span className="nav-btn-label" style={{ fontWeight: 700 }}>
+                Thiết lập
+              </span>
             )}
-
-            <form onSubmit={handleVerifyPinSubmit}>
-              <div className="form-group">
-                <input
-                  className="form-input"
-                  style={{
-                    background: '#fff',
-                    color: '#0f172a',
-                    border: '2px solid #2563eb',
-                    fontSize: '24px',
-                    letterSpacing: '8px',
-                    textAlign: 'center',
-                    fontWeight: 800
-                  }}
-                  type="password"
-                  maxLength={4}
-                  placeholder="••••"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
-                  autoFocus
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button
-                  type="button"
-                  className="btn-logout"
-                  style={{ flex: 1 }}
-                  onClick={() => setIsPinModalOpen(false)}
-                >
-                  Hủy
-                </button>
-                <button type="submit" className="btn-primary" style={{ flex: 1 }}>
-                  Xác nhận
-                </button>
-              </div>
-            </form>
-          </div>
+            {activeView === 'settings' && <span className="nav-active-indicator"></span>}
+          </button>
         </div>
-      )}
+      </aside>
+
+      {/* Main Layout Area */}
+      <div className="admin-main-area">
+        {/* Top Header Bar */}
+        <header className="admin-topbar">
+          <div className="admin-topbar-left">
+            <div className="status-pill-open">
+              <span className="live-dot"></span>
+              <span>Đang mở cửa</span>
+            </div>
+            <div className="topbar-clock">
+              <span>⏰ {currentTime}</span>
+            </div>
+          </div>
+
+          <div className="admin-topbar-right">
+            {/* Quick Action Buttons */}
+            <div className="quick-actions-bar">
+              <button
+                type="button"
+                className="topbar-action-btn"
+                onClick={() => {
+                  setActiveView('reports_revenue')
+                  setExpandedGroup('reports')
+                }}
+                title="Xem báo cáo doanh thu"
+              >
+                📊 Doanh thu
+              </button>
+              <button
+                type="button"
+                className="topbar-action-btn"
+                onClick={() => {
+                  setActiveView('products_list')
+                  setExpandedGroup('products')
+                }}
+                title="Danh sách mặt hàng"
+              >
+                📦 Mặt hàng
+              </button>
+              <button
+                type="button"
+                className="topbar-action-btn"
+                onClick={() => {
+                  setActiveView('staff_list')
+                  setExpandedGroup('staff')
+                }}
+                title="Quản lý nhân viên"
+              >
+                👥 Nhân sự
+              </button>
+            </div>
+
+            {/* User Profile Dropdown */}
+            <div className="admin-user-dropdown-container">
+              <button
+                type="button"
+                className="admin-user-profile-btn"
+                onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+              >
+                <div className="admin-user-avatar">
+                  {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'A'}
+                </div>
+                <div className="admin-user-meta">
+                  <span className="admin-user-name">{user?.displayName || 'Chủ quán'}</span>
+                  <span className="admin-user-role">{user?.roleName || 'Chủ cửa hàng'}</span>
+                </div>
+                <span className="dropdown-arrow-icon">{isUserDropdownOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {isUserDropdownOpen && (
+                <div className="admin-user-dropdown-menu">
+                  <div className="dropdown-menu-header">
+                    <strong>{user?.displayName || 'Quản trị viên'}</strong>
+                    <small>{user?.username || 'admin'}</small>
+                    <span className="badge-role-owner">👑 {user?.roleName || 'Chủ quán'}</span>
+                  </div>
+
+                  <div className="dropdown-menu-divider"></div>
+
+                  <button
+                    type="button"
+                    className="dropdown-menu-item"
+                    onClick={() => {
+                      setActiveView('settings')
+                      setExpandedGroup(null)
+                      setIsUserDropdownOpen(false)
+                    }}
+                  >
+                    <span>⚙️ Cài đặt cửa hàng</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="dropdown-menu-item"
+                    onClick={() => {
+                      setActiveView('staff_list')
+                      setExpandedGroup('staff')
+                      setIsUserDropdownOpen(false)
+                    }}
+                  >
+                    <span>👥 Quản lý tài khoản</span>
+                  </button>
+
+                  <div className="dropdown-menu-divider"></div>
+
+                  <button
+                    type="button"
+                    className="dropdown-menu-item item-logout"
+                    onClick={() => {
+                      setIsUserDropdownOpen(false)
+                      onLogout()
+                    }}
+                  >
+                    <span>🚪 Đăng xuất khỏi hệ thống</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Content Body View Router */}
+        <main className="admin-content-body">
+          {/* 1. Tổng quan */}
+          {activeView === 'overview' && <OverviewDashboard />}
+
+          {/* 2. Báo cáo */}
+          {activeView === 'reports_revenue' && <ReportsScreen subType="revenue" />}
+          {activeView === 'reports_products' && <ReportsScreen subType="products" />}
+          {activeView === 'reports_staff' && <ReportsScreen subType="staff" />}
+
+          {/* 3. Hóa đơn */}
+          {activeView === 'invoices_sales' && <InvoicesHistoryScreen />}
+
+          {/* 4. Mặt hàng */}
+          {activeView === 'products_list' && <ProductsManagementScreen subType="list" />}
+          {activeView === 'products_menu' && <ProductsManagementScreen subType="menu" />}
+          {activeView === 'products_categories' && <ProductsManagementScreen subType="categories" />}
+
+          {/* 5. Nhân viên */}
+          {activeView === 'staff_list' && <StaffManagementScreen />}
+          {activeView === 'staff_roles' && <RolesManagementScreen />}
+
+          {/* 6. Khách hàng */}
+          {activeView === 'customers_list' && <CustomersManagementScreen subType="list" />}
+          {activeView === 'customers_groups' && <CustomersManagementScreen subType="groups" />}
+
+          {/* 7. Thiết lập quán */}
+          {activeView === 'settings' && <StoreSettingsScreen />}
+        </main>
+      </div>
     </div>
   )
 }

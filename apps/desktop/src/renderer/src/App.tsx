@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import type { DesktopAuthState } from '../../shared/auth-api'
 import { LoginPage } from './features/auth/LoginPage'
 import { DashboardLayout } from './features/dashboard/DashboardLayout'
+import { StaffPosLayout } from './features/pos/StaffPosLayout'
 
 function App(): React.JSX.Element {
   const [authState, setAuthState] = useState<DesktopAuthState | null>(null)
@@ -37,7 +38,7 @@ function App(): React.JSX.Element {
         <div style={{ textAlign: 'center', color: '#1e293b' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>🎱</div>
           <div style={{ fontSize: '15px', fontWeight: 600, color: '#475569' }}>
-            Đang khởi động Billiard POS...
+            Đang khởi động Pro POS...
           </div>
         </div>
       </div>
@@ -45,6 +46,10 @@ function App(): React.JSX.Element {
   }
 
   if (authState && authState.status === 'authenticated') {
+    const role = authState.user?.roleCode
+    if (role === 'staff' || role === 'cashier') {
+      return <StaffPosLayout authState={authState} onLogout={handleLogout} />
+    }
     return <DashboardLayout authState={authState} onLogout={handleLogout} />
   }
 
