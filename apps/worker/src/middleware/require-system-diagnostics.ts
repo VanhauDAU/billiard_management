@@ -36,17 +36,18 @@ export const requireSystemDiagnostics =
         c.req.header('Authorization')
 
       if (!authorization) {
+        c.header(
+          'WWW-Authenticate',
+          'Bearer'
+        )
+
         return c.json(
           {
             ok: false,
             error:
               'system_auth_required'
           },
-          401,
-          {
-            'WWW-Authenticate':
-              'Bearer'
-          }
+          401
         )
       }
 
