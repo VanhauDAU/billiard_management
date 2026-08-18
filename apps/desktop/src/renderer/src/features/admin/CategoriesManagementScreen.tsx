@@ -2,6 +2,73 @@ import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import type { Category } from '@billiards/contracts'
 
+interface CategoryProductItem {
+  id: string
+  name: string
+  unit: string
+  price: number
+  icon: string
+  status: 'active' | 'out_of_stock'
+}
+
+function getCategoryProducts(categoryName: string): CategoryProductItem[] {
+  const norm = categoryName.toLowerCase().trim()
+  if (norm.includes('giờ') || norm.includes('gio')) {
+    return [
+      { id: 'p_gio_1', name: 'Bida Lỗ - Pool (Bàn tiêu chuẩn)', unit: 'Giờ', price: 60000, icon: '🎱', status: 'active' },
+      { id: 'p_gio_2', name: 'Bida Phăng - Carom (Bàn Libre)', unit: 'Giờ', price: 70000, icon: '🔴', status: 'active' },
+      { id: 'p_gio_3', name: 'Bida 3 Băng (Cushion 3C)', unit: 'Giờ', price: 90000, icon: '⚪', status: 'active' },
+      { id: 'p_gio_4', name: 'Phòng Bàn VIP Diamond', unit: 'Giờ', price: 120000, icon: '👑', status: 'active' }
+    ]
+  }
+  if (norm.includes('uống') || norm.includes('nuoc') || norm.includes('uong')) {
+    return [
+      { id: 'p_nuoc_1', name: 'Sting Dâu tây đỏ ướp lạnh', unit: 'Chai', price: 15000, icon: '🥤', status: 'active' },
+      { id: 'p_nuoc_2', name: 'Bò Húc Red Bull (Thái)', unit: 'Lon', price: 20000, icon: '🥫', status: 'active' },
+      { id: 'p_nuoc_3', name: 'Cà phê sữa đá pha phin', unit: 'Ly', price: 25000, icon: '☕', status: 'active' },
+      { id: 'p_nuoc_4', name: 'Nước suối Dasani 500ml', unit: 'Chai', price: 10000, icon: '💧', status: 'active' },
+      { id: 'p_nuoc_5', name: 'Bia Heineken Silver', unit: 'Lon', price: 28000, icon: '🍺', status: 'active' },
+      { id: 'p_nuoc_6', name: 'Bia Tiger Crystal', unit: 'Lon', price: 25000, icon: '🍻', status: 'active' },
+      { id: 'p_nuoc_7', name: 'Trà xanh C2 chanh tuyết', unit: 'Chai', price: 12000, icon: '🧃', status: 'active' }
+    ]
+  }
+  if (norm.includes('mỳ') || norm.includes('my') || norm.includes('noodle')) {
+    return [
+      { id: 'p_my_1', name: 'Mì tôm trứng ốp la xúc xích', unit: 'Tô', price: 30000, icon: '🍜', status: 'active' },
+      { id: 'p_my_2', name: 'Mì xào bò rau cải', unit: 'Đĩa', price: 40000, icon: '🍝', status: 'active' },
+      { id: 'p_my_3', name: 'Mì cay hải sản thập cẩm', unit: 'Tô', price: 45000, icon: '🍲', status: 'active' },
+      { id: 'p_my_4', name: 'Mì xào xúc xích trứng', unit: 'Đĩa', price: 35000, icon: '🍳', status: 'active' }
+    ]
+  }
+  if (norm.includes('đồ ăn') || norm.includes('do an') || norm.includes('ăn')) {
+    return [
+      { id: 'p_an_1', name: 'Cơm chiên dưa bò', unit: 'Đĩa', price: 45000, icon: '🍛', status: 'active' },
+      { id: 'p_an_2', name: 'Cơm chiên hải sản', unit: 'Đĩa', price: 50000, icon: '🍤', status: 'active' },
+      { id: 'p_an_3', name: 'Khoai tây chiên bơ tỏi', unit: 'Đĩa', price: 30000, icon: '🍟', status: 'active' },
+      { id: 'p_an_4', name: 'Nem chua rán Phố Cổ (6 cái)', unit: 'Đĩa', price: 40000, icon: '🍢', status: 'active' },
+      { id: 'p_an_5', name: 'Xúc xích nướng tiêu', unit: 'Cây', price: 15000, icon: '🌭', status: 'active' }
+    ]
+  }
+  if (norm.includes('thịt') || norm.includes('thit')) {
+    return [
+      { id: 'p_thit_1', name: 'Bò khô sợi vắt chanh', unit: 'Đĩa', price: 55000, icon: '🥩', status: 'active' },
+      { id: 'p_thit_2', name: 'Khô gà lá chanh', unit: 'Đĩa', price: 40000, icon: '🍗', status: 'active' },
+      { id: 'p_thit_3', name: 'Khô mực nướng cồn', unit: 'Con', price: 80000, icon: '🦑', status: 'active' }
+    ]
+  }
+  if (norm.includes('rau') || norm.includes('quả') || norm.includes('qua') || norm.includes('trái cây')) {
+    return [
+      { id: 'p_rau_1', name: 'Dưa hấu ướp lạnh', unit: 'Đĩa', price: 35000, icon: '🍉', status: 'active' },
+      { id: 'p_rau_2', name: 'Đĩa hoa quả thập cẩm (Xoài, Ổi, Mận)', unit: 'Đĩa', price: 50000, icon: '🍎', status: 'active' }
+    ]
+  }
+  // Generic starter items for newly created custom categories
+  return [
+    { id: 'p_custom_1', name: `${categoryName} Loại 1`, unit: 'Cái', price: 30000, icon: '🏷️', status: 'active' },
+    { id: 'p_custom_2', name: `${categoryName} Loại Cao cấp`, unit: 'Phần', price: 50000, icon: '⭐', status: 'active' }
+  ]
+}
+
 export function CategoriesManagementScreen(): React.JSX.Element {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -165,6 +232,11 @@ export function CategoriesManagementScreen(): React.JSX.Element {
       console.error('Delete category failed:', err)
       toast.error('Lỗi khi xóa danh mục.')
     }
+  }
+
+  // Helper format VND currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('vi-VN').format(amount) + ' đ'
   }
 
   return (
@@ -460,26 +532,39 @@ export function CategoriesManagementScreen(): React.JSX.Element {
           ========================================================= */}
       {isCreateModalOpen && (
         <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
-          <div className="modal-card" style={{ maxWidth: '500px', borderRadius: '12px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', borderRadius: '12px 12px 0 0' }}>
-              <h3 className="modal-title" style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Tạo danh mục mới</h3>
-              <button type="button" className="modal-close-btn" style={{ fontSize: '18px', cursor: 'pointer', background: 'none', border: 'none', color: '#64748b' }} onClick={() => setIsCreateModalOpen(false)}>
+          <div
+            className="modal-card"
+            style={{ maxWidth: '500px', borderRadius: '12px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3 className="modal-title">Tạo danh mục mới</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsCreateModalOpen(false)}
+              >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleCreateSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13.5px', fontWeight: 600, color: '#334155' }}>
                     Tên danh mục <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
                     type="text"
-                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s' }}
-                    onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
-                    onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
-                    placeholder="Nhập tên danh mục (vd: Đồ uống, Mì gói...)"
+                    className="form-input"
+                    style={{
+                      height: '40px',
+                      padding: '0 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px'
+                    }}
+                    placeholder="Nhập tên danh mục (vd: Đồ uống, Mì gói, Gậy cơ...)"
                     value={categoryName}
                     onChange={(e) => setCategoryName(e.target.value)}
                     required
@@ -487,31 +572,58 @@ export function CategoriesManagementScreen(): React.JSX.Element {
                   />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>Mô tả / Ghi chú</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13.5px', fontWeight: 600, color: '#334155' }}>
+                    Mô tả / Ghi chú
+                  </label>
                   <textarea
                     rows={3}
-                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s', resize: 'vertical' }}
-                    onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
-                    onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
-                    placeholder="Mô tả phân loại danh mục này..."
+                    className="form-input"
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px',
+                      resize: 'vertical',
+                      lineHeight: '1.5'
+                    }}
+                    placeholder="Mô tả phân loại hoặc ghi chú cho danh mục này..."
                     value={categoryDescription}
                     onChange={(e) => setCategoryDescription(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderRadius: '0 0 12px 12px' }}>
+              <div className="modal-footer">
                 <button
                   type="button"
-                  style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
                   onClick={() => setIsCreateModalOpen(false)}
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#0088ff', color: '#ffffff', fontWeight: 600, cursor: 'pointer', fontSize: '14px', opacity: isSubmitting ? 0.7 : 1 }}
+                  style={{
+                    padding: '8px 22px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#0088ff',
+                    color: '#ffffff',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    opacity: isSubmitting ? 0.7 : 1
+                  }}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? 'Đang lưu...' : 'Lưu'}
@@ -527,152 +639,287 @@ export function CategoriesManagementScreen(): React.JSX.Element {
           ========================================================= */}
       {isEditModalOpen && activeCategory && (
         <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
-          <div className="modal-card" style={{ maxWidth: '700px', borderRadius: '12px', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', borderRadius: '12px 12px 0 0', flexShrink: 0 }}>
-              <h3 className="modal-title" style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Chi tiết & Sửa danh mục</h3>
-              <button type="button" className="modal-close-btn" style={{ fontSize: '18px', cursor: 'pointer', background: 'none', border: 'none', color: '#64748b' }} onClick={() => setIsEditModalOpen(false)}>
+          <div
+            className="modal-card"
+            style={{ maxWidth: '820px', width: '92vw', maxHeight: '90vh', borderRadius: '12px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 className="modal-title">Chi tiết danh mục</h3>
+                <span
+                  style={{
+                    background: '#e0f2fe',
+                    color: '#0284c7',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: 600
+                  }}
+                >
+                  {activeCategory.name}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsEditModalOpen(false)}
+              >
                 ✕
               </button>
             </div>
 
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-              {/* Form Bên Trái (Cập nhật thông tin) */}
-              <form onSubmit={handleEditSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid #e2e8f0', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+            <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div className="modal-body" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                {/* 1. THÔNG TIN DANH MỤC */}
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '14px'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
                       Tên danh mục <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
                       type="text"
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s' }}
-                      onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
-                      onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
+                      className="form-input"
+                      style={{
+                        height: '38px',
+                        padding: '0 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13.5px',
+                        background: '#ffffff'
+                      }}
                       value={categoryName}
                       onChange={(e) => setCategoryName(e.target.value)}
                       required
                     />
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>Mô tả / Ghi chú</label>
-                    <textarea
-                      rows={3}
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14.5px', outline: 'none', transition: 'border 0.2s', resize: 'vertical' }}
-                      onFocus={(e) => (e.target.style.borderColor = '#0088ff')}
-                      onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                      Mô tả / Ghi chú
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{
+                        height: '38px',
+                        padding: '0 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13.5px',
+                        background: '#ffffff'
+                      }}
+                      placeholder="Mô tả danh mục..."
                       value={categoryDescription}
                       onChange={(e) => setCategoryDescription(e.target.value)}
                     />
                   </div>
+                </div>
 
-                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '14px', borderRadius: '8px', fontSize: '13.5px', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '18px' }}>📦</span>
-                    <span>Danh mục này hiện đang chứa <strong>{activeCategory.itemCount ?? 0} mặt hàng</strong>.</span>
+                {/* 2. DANH SÁCH MẶT HÀNG TRONG DANH MỤC */}
+                <div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '12px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: '#1e293b' }}>
+                        Danh sách mặt hàng trong danh mục
+                      </h4>
+                      <span
+                        style={{
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '12px',
+                          fontWeight: 700
+                        }}
+                      >
+                        {getCategoryProducts(activeCategory.name).length} mặt hàng
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      background: '#ffffff'
+                    }}
+                  >
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                          <th style={{ padding: '10px 14px', width: '56px' }}>Ảnh</th>
+                          <th style={{ padding: '10px 12px' }}>Tên mặt hàng</th>
+                          <th style={{ padding: '10px 12px', width: '110px' }}>Đơn vị tính</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'right', width: '140px' }}>Giá bán</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'center', width: '130px' }}>Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getCategoryProducts(activeCategory.name).map((product, idx) => (
+                          <tr
+                            key={product.id}
+                            style={{
+                              borderBottom: idx === getCategoryProducts(activeCategory.name).length - 1 ? 'none' : '1px solid #f1f5f9',
+                              transition: 'background 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
+                          >
+                            {/* Ảnh / Icon đại diện */}
+                            <td style={{ padding: '8px 14px' }}>
+                              <div
+                                style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '8px',
+                                  background: '#f1f5f9',
+                                  border: '1px solid #e2e8f0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '20px'
+                                }}
+                              >
+                                {product.icon}
+                              </div>
+                            </td>
+
+                            {/* Tên mặt hàng */}
+                            <td style={{ padding: '8px 12px', fontWeight: 600, color: '#1e293b' }}>
+                              {product.name}
+                            </td>
+
+                            {/* Đơn vị tính */}
+                            <td style={{ padding: '8px 12px' }}>
+                              <span
+                                style={{
+                                  background: '#f1f5f9',
+                                  color: '#475569',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: 500
+                                }}
+                              >
+                                {product.unit}
+                              </span>
+                            </td>
+
+                            {/* Giá bán */}
+                            <td style={{ padding: '8px 16px', textAlign: 'right', fontWeight: 700, color: '#0088ff', fontSize: '14px' }}>
+                              {formatCurrency(product.price)}
+                            </td>
+
+                            {/* Trạng thái */}
+                            <td style={{ padding: '8px 14px', textAlign: 'center' }}>
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: '#dcfce7',
+                                  color: '#15803d',
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 600
+                                }}
+                              >
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
+                                Đang bán
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
-                <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderBottomLeftRadius: '12px' }}>
+              </div>
+
+              {/* Action Buttons Footer */}
+              <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+                <button
+                  type="button"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  onClick={() => handleDeleteCategory(activeCategory.id, activeCategory.name)}
+                >
+                  <span>🗑️</span> Xóa danh mục
+                </button>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
                   <button
                     type="button"
-                    style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #fca5a5', background: '#fef2f2', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '13.5px' }}
-                    onClick={() => handleDeleteCategory(activeCategory.id, activeCategory.name)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#475569',
+                      fontSize: '13.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setIsEditModalOpen(false)}
                   >
-                    🗑️ Xóa
+                    Hủy
                   </button>
-
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                      type="button"
-                      style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontWeight: 600, cursor: 'pointer', fontSize: '13.5px' }}
-                      onClick={() => setIsEditModalOpen(false)}
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      type="submit"
-                      style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#0088ff', color: '#ffffff', fontWeight: 600, cursor: 'pointer', fontSize: '13.5px', opacity: isSubmitting ? 0.7 : 1 }}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Đang lưu...' : 'Lưu'}
-                    </button>
-                  </div>
-                </div>
-              </form>
-
-              {/* Danh sách sản phẩm thuộc danh mục Bên Phải */}
-              <div style={{ flex: 1, padding: '24px', overflowY: 'auto', background: '#ffffff', borderBottomRightRadius: '12px' }}>
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  Mặt hàng trong danh mục
-                  <span style={{ background: '#e2e8f0', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontSize: '12px' }}>
-                    {activeCategory.itemCount ?? 0}
-                  </span>
-                </h4>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {(() => {
-                    const norm = activeCategory.name.toLowerCase()
-                    let products: Array<{ id: string; name: string; price: number; img: string }> = []
-                    if (norm.includes('giờ') || norm.includes('gio')) {
-                      products = [
-                        { id: '1', name: 'Bida Lỗ (Pool)', price: 60000, img: '🎱' },
-                        { id: '2', name: 'Bida Phăng (Carom)', price: 70000, img: '🔴' }
-                      ]
-                    } else if (norm.includes('đồ uống') || norm.includes('uong')) {
-                      products = [
-                        { id: '3', name: 'Sting Dâu', price: 15000, img: '🥤' },
-                        { id: '4', name: 'Bò Húc (Redbull)', price: 20000, img: '🥫' },
-                        { id: '5', name: 'Nước suối Dasani', price: 10000, img: '💧' },
-                        { id: '6', name: 'Cafe Muối', price: 25000, img: '☕' }
-                      ]
-                    } else if (norm.includes('mỳ') || norm.includes('noodle') || norm.includes('đồ ăn')) {
-                      products = [
-                        { id: '7', name: 'Mỳ xào bò', price: 35000, img: '🍝' },
-                        { id: '8', name: 'Mỳ trứng xúc xích', price: 30000, img: '🍜' },
-                        { id: '9', name: 'Cơm rang dưa bò', price: 40000, img: '🍛' }
-                      ]
-                    } else if (norm.includes('thịt')) {
-                      products = [
-                        { id: '10', name: 'Khô bò vắt chanh', price: 50000, img: '🥩' },
-                        { id: '11', name: 'Khô gà lá chanh', price: 40000, img: '🍗' }
-                      ]
-                    } else {
-                      products = [
-                        { id: '12', name: 'Mặt hàng mẫu 1', price: 15000, img: '📦' },
-                        { id: '13', name: 'Mặt hàng mẫu 2', price: 25000, img: '📦' }
-                      ]
-                    }
-
-                    if (activeCategory.itemCount === 0) {
-                      return (
-                        <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8', fontSize: '13.5px' }}>
-                          <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>📭</span>
-                          Danh mục này chưa có mặt hàng nào.
-                        </div>
-                      )
-                    }
-
-                    return products.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', border: '1px solid #f1f5f9', borderRadius: '8px', transition: 'background 0.2s', cursor: 'default' }} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ width: '44px', height: '44px', background: '#f1f5f9', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
-                          {p.img}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>{p.name}</div>
-                          <div style={{ fontSize: '13px', color: '#0088ff', fontWeight: 700 }}>
-                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.price)}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  })()}
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '8px 22px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#0088ff',
+                      color: '#ffffff',
+                      fontSize: '13.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      opacity: isSubmitting ? 0.7 : 1
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  </button>
                 </div>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
     </div>
   )
 }
-
