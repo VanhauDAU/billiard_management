@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
 interface ProductsManagementScreenProps {
-  subType: 'list' | 'menu' | 'categories'
+  subType: 'list' | 'categories'
 }
 
 export function ProductsManagementScreen({ subType }: ProductsManagementScreenProps): React.JSX.Element {
@@ -37,12 +37,10 @@ export function ProductsManagementScreen({ subType }: ProductsManagementScreenPr
         <div>
           <h1 className="admin-page-title">
             {subType === 'list' && '📦 Danh Sách Mặt Hàng & Tồn Kho'}
-            {subType === 'menu' && '🍽️ Thực Đơn Bán Hàng & Phục Vụ'}
             {subType === 'categories' && '📑 Quản Lý Danh Mục Mặt Hàng'}
           </h1>
           <p className="admin-page-subtitle">
             {subType === 'list' && 'Tra cứu toàn bộ hàng hóa, giá vốn, giá bán niêm yết và số lượng tồn'}
-            {subType === 'menu' && 'Thực đơn phục vụ tại bàn, phân loại đồ uống và món ăn'}
             {subType === 'categories' && 'Quản lý các nhóm danh mục phân loại sản phẩm trong quán'}
           </p>
         </div>
@@ -52,8 +50,8 @@ export function ProductsManagementScreen({ subType }: ProductsManagementScreenPr
         </button>
       </div>
 
-      {/* Subtype 1: List / Subtype 2: Menu */}
-      {(subType === 'list' || subType === 'menu') && (
+      {/* Subtype: List */}
+      {subType === 'list' && (
         <div className="admin-card">
           <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <input

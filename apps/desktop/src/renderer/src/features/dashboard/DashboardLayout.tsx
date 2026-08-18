@@ -22,7 +22,6 @@ type AdminViewKey =
   | 'reports_staff'
   | 'invoices_sales'
   | 'products_list'
-  | 'products_menu'
   | 'products_categories'
   | 'staff_list'
   | 'staff_roles'
@@ -105,7 +104,6 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
       icon: '🍽️',
       children: [
         { key: 'products_list', label: 'Danh sách mặt hàng' },
-        { key: 'products_menu', label: 'Thực đơn' },
         { key: 'products_categories', label: 'Danh mục' }
       ]
     },
@@ -403,7 +401,6 @@ export function DashboardLayout({ authState, onLogout }: DashboardLayoutProps): 
 
           {/* 4. Mặt hàng */}
           {activeView === 'products_list' && <ProductsManagementScreen subType="list" />}
-          {activeView === 'products_menu' && <ProductsManagementScreen subType="menu" />}
           {activeView === 'products_categories' && <ProductsManagementScreen subType="categories" />}
 
           {/* 5. Nhân viên */}
