@@ -4,6 +4,9 @@ import {
   DeviceTypeSchema
 } from './device-context'
 
+export const DeviceSecretSchema = z.string()
+  .regex(/^[a-f0-9]{64}$/i)
+
 export const ActivateDeviceRequestSchema = z.object({
   activationToken: z.string()
     .min(32)
@@ -33,10 +36,9 @@ export type ActivateDeviceRequest =
   z.infer<typeof ActivateDeviceRequestSchema>
 
 export const ActivateDeviceResponseSchema = z.object({
-  deviceId: z.string().min(1),
+  deviceId: z.string().uuid(),
 
-  deviceSecret: z.string()
-    .length(64),
+  deviceSecret: DeviceSecretSchema,
 
   storeId: z.string().min(1),
 
