@@ -960,7 +960,7 @@ export async function changeUserPin(
       const pinRow = await db
         .prepare(`
           SELECT pin_hash, pin_salt, kdf_iterations
-          FROM user_pin_credentials
+          FROM employee_pin_credentials
           WHERE user_id = ?1 AND store_id = ?2
         `)
         .bind(userId, storeId)
@@ -988,7 +988,7 @@ export async function changeUserPin(
 
     await db
       .prepare(`
-        INSERT INTO user_pin_credentials (
+        INSERT INTO employee_pin_credentials (
           id, store_id, user_id, pin_hash, pin_salt, kdf_algorithm, kdf_iterations, status
         )
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'active')
