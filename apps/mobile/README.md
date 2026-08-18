@@ -1,32 +1,75 @@
-# React + TypeScript + Vite
+# Billiards Mobile PWA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + TypeScript + Vite scaffold cho Mobile PWA của hệ thống quản lý billiards.
 
-Currently, two official plugins are available:
+## Trạng thái
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Deferred scaffold.** Mobile chưa phải operational client ở M1 hiện tại.
 
-## React Compiler
+Thứ tự triển khai đã chốt:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```text
+Desktop online vertical slice
+      ↓
+Device / Employee / Permission
+      ↓
+Tables / Session / Product / Bill / Payment
+      ↓
+Mobile PWA + realtime
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Không triển khai business rule riêng cho Mobile trước khi contracts/commands phía server ổn định.
+
+## Kiến trúc mục tiêu
+
+Mobile sau này là full operational client theo permission, không chỉ viewer:
+
+- xem trạng thái bàn,
+- mở bàn,
+- thêm sản phẩm,
+- chuyển bàn,
+- gộp bill,
+- thanh toán,
+- xem hóa đơn,
+- xem báo cáo/quản lý theo permission.
+
+Mobile phải dùng chung:
+
+- Worker APIs,
+- trusted Store/Auth/Permission boundary,
+- `@billiards/contracts`,
+- command semantics,
+- server-side business validation.
+
+Không fork pricing/table/session/bill/payment logic riêng vào PWA.
+
+## Chưa triển khai
+
+Hiện chưa có:
+
+- Mobile device activation/authentication hoàn chỉnh,
+- Employee PIN AuthGate,
+- permission context,
+- realtime Store DO connection,
+- PWA install/offline strategy,
+- operational screens.
+
+Các mục trên sẽ được thêm theo milestone, không coi scaffold hiện tại là feature hoàn chỉnh.
+
+## Development
+
+Trong thư mục `apps/mobile`:
+
+```bash
+pnpm dev
+```
+
+Các script cụ thể xem tại `package.json`.
+
+## Tài liệu liên quan
+
+- `../../docs/ARCHITECTURE.md`
+- `../../docs/PROGRESS.md`
+- `../../docs/SYSTEM_SCOPE_V1.md`
+
+Khi bắt đầu milestone Mobile, cập nhật README này cùng contracts và security boundary trước khi thêm UI nghiệp vụ lớn.
