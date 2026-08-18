@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { DesktopAuthState } from '../../../../shared/auth-api'
 import { PosZoneTablesScreen } from './PosZoneTablesScreen'
 import { PosOrdersScreen } from './PosOrdersScreen'
@@ -12,21 +12,58 @@ interface StaffPosLayoutProps {
 type StaffTabKey = 'orders' | 'zone' | 'qr' | 'more'
 
 export function StaffPosLayout({ authState, onLogout }: StaffPosLayoutProps): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState<StaffTabKey>('zone')
+  // Default tab is 'orders' as requested
+  const [activeTab, setActiveTab] = useState<StaffTabKey>('orders')
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date())
 
   const user = authState.status === 'authenticated' ? authState.user : null
   const store = authState.status === 'authenticated' ? authState.store : null
 
+  // Real store name from settings
+  const getStoreName = (): string => {
+    try {
+      const raw = localStorage.getItem('billiard_store_settings_v1')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed.storeName) return parsed.storeName
+      }
+    } catch (e) {
+      console.warn('Could not read store settings', e)
+    }
+    return store?.name || 'Vanhau1410rr'
+  }
+
+  const storeName = getStoreName()
+
+  // Real-time clock update every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // Format real-time string
+  const formatLiveTime = (d: Date) => {
+    const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+    const dayName = days[d.getDay()]
+    const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+    return `${timeStr} - ${dayName}, ${dateStr}`
+  }
+
   return (
     <div className="staff-pos-wrapper">
-      {/* Top Status Bar matching Sapo FnB */}
+      {/* Top Status Bar with Live Clock and Store Name */}
       <header className="staff-pos-statusbar">
         <div className="statusbar-left">
-          <span>02:16 Thứ 4 19 thg 8</span>
-          <strong className="statusbar-brand">Sapo FnB</strong>
+          <span className="statusbar-clock">🕒 {formatLiveTime(currentTime)}</span>
+          <span className="statusbar-divider">•</span>
+          <strong className="statusbar-brand">🎱 {storeName}</strong>
         </div>
         <div className="statusbar-right">
-          <span>🛜 50% 🔋</span>
+          <span className="staff-statusbar-badge">👨‍💼 {user?.displayName || 'Nhân viên thu ngân'}</span>
+          <span className="statusbar-wifi">🛜 Đã kết nối POS</span>
         </div>
       </header>
 
@@ -35,6 +72,7 @@ export function StaffPosLayout({ authState, onLogout }: StaffPosLayoutProps): Re
         {activeTab === 'orders' && (
           <PosOrdersScreen
             userName={user?.displayName || 'Lê văn đại'}
+            storeName={storeName}
             onLogout={onLogout}
           />
         )}
@@ -60,19 +98,20 @@ export function StaffPosLayout({ authState, onLogout }: StaffPosLayoutProps): Re
         {activeTab === 'more' && (
           <PosMoreSettingsScreen
             userName={user?.displayName || 'Lê văn đại'}
-            storeName={store?.name || 'Vanhau1410rr'}
+            storeName={storeName}
             storeCode={store?.slug || '107493'}
             onLogout={onLogout}
           />
         )}
       </main>
 
-      {/* Bottom Navigation Bar matching all 3 screenshots */}
+      {/* Bottom Navigation Bar with Expanded Hitboxes */}
       <nav className="staff-pos-bottom-nav">
         <button
           type="button"
           className={`pos-bottom-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
+          title="Xem danh sách đơn hàng đang chơi và thanh toán"
         >
           <span className="bottom-nav-icon">📰</span>
           <span className="bottom-nav-label">Đơn hàng</span>
@@ -82,6 +121,7 @@ export function StaffPosLayout({ authState, onLogout }: StaffPosLayoutProps): Re
           type="button"
           className={`pos-bottom-nav-item ${activeTab === 'zone' ? 'active' : ''}`}
           onClick={() => setActiveTab('zone')}
+          title="Sơ đồ khu vực và bàn bida"
         >
           <span className="bottom-nav-icon">🗂️</span>
           <span className="bottom-nav-label">Khu vực</span>
@@ -91,6 +131,7 @@ export function StaffPosLayout({ authState, onLogout }: StaffPosLayoutProps): Re
           type="button"
           className={`pos-bottom-nav-item ${activeTab === 'qr' ? 'active' : ''}`}
           onClick={() => setActiveTab('qr')}
+          title="Mã QR Order tại bàn"
         >
           <span className="bottom-nav-icon">📱</span>
           <span className="bottom-nav-label">QR Order</span>
@@ -100,6 +141,7 @@ export function StaffPosLayout({ authState, onLogout }: StaffPosLayoutProps): Re
           type="button"
           className={`pos-bottom-nav-item ${activeTab === 'more' ? 'active' : ''}`}
           onClick={() => setActiveTab('more')}
+          title="Thêm tùy chọn và cài đặt POS"
         >
           <span className="bottom-nav-icon">➕</span>
           <span className="bottom-nav-label">Thêm</span>
@@ -108,3 +150,4 @@ export function StaffPosLayout({ authState, onLogout }: StaffPosLayoutProps): Re
     </div>
   )
 }
+
