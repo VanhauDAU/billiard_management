@@ -8,3 +8,6 @@ export * from './device/device-activation'
 export * from './auth/auth-context'
 export * from './auth/employee-auth'
 export * from './auth/permission'
+
+export * from './table/table'
+export * from './table/table-command'
