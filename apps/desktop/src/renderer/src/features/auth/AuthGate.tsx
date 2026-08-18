@@ -15,7 +15,13 @@ import type {
   DesktopAuthState
 } from '../../../../shared/auth-api'
 
+import {
+  PermissionGate
+} from '../permissions/PermissionGate'
 
+import type {
+  UiPermissionContext
+} from '../permissions/PermissionGate'
 const PIN_PATTERN =
   /^\d{4,6}$/
 
@@ -34,10 +40,10 @@ const KEYPAD_DIGITS = [
 
 interface AuthGateProps {
   deviceContext:
-    DeviceContext
+  DeviceContext
 
   onDeviceNotReady:
-    () => void | Promise<void>
+  () => void | Promise<void>
 }
 
 
@@ -266,6 +272,60 @@ export function AuthGate({
       ]
     )
 
+  const handlePermissionSignedOut =
+    useCallback(
+      async () => {
+        /*
+         * Main Process đã xác định AuthSession
+         * không còn hợp lệ và đã xóa local
+         * session credential.
+         *
+         * Renderer chỉ reset UI state.
+         */
+
+        setAuthState({
+          status:
+            'signed_out'
+        })
+
+
+        setSelectedEmployeeId(
+          null
+        )
+
+
+        setPin('')
+
+
+        setLockedUntil(
+          null
+        )
+
+
+        setLockRemaining(
+          0
+        )
+
+
+        setLoginError(
+          null
+        )
+
+
+        setLogoutError(
+          null
+        )
+
+
+        /*
+         * Quay lại employee picker.
+         */
+        await loadEmployees()
+      },
+      [
+        loadEmployees
+      ]
+    )
 
   useEffect(
     () => {
@@ -369,7 +429,7 @@ export function AuthGate({
                   lockedUntil -
                   Date.now()
                 ) /
-                  1000
+                1000
               )
             )
 
@@ -404,7 +464,7 @@ export function AuthGate({
         lockRemaining === 0 &&
         lockedUntil !== null &&
         Date.now() >=
-          lockedUntil
+        lockedUntil
       ) {
         setLockedUntil(
           null
@@ -439,7 +499,7 @@ export function AuthGate({
 
 
   function changeEmployee():
-  void {
+    void {
     setSelectedEmployeeId(
       null
     )
@@ -488,7 +548,7 @@ export function AuthGate({
 
 
   function deleteDigit():
-  void {
+    void {
     if (
       loginLoading ||
       lockRemaining > 0
@@ -511,7 +571,7 @@ export function AuthGate({
 
 
   function clearPin():
-  void {
+    void {
     if (loginLoading) {
       return
     }
@@ -613,7 +673,7 @@ export function AuthGate({
       }
 
       switch (
-        result.error
+      result.error
       ) {
         case 'invalid_employee_or_pin':
           setLoginError(
@@ -635,14 +695,14 @@ export function AuthGate({
               Math.ceil(
                 result
                   .retryAfterSeconds ??
-                  1
+                1
               )
             )
 
           setLockedUntil(
             Date.now() +
-              retryAfter *
-                1000
+            retryAfter *
+            1000
           )
 
           setLoginError(
@@ -696,7 +756,7 @@ export function AuthGate({
 
 
   async function handleLogout():
-  Promise<void> {
+    Promise<void> {
     setLogoutLoading(
       true
     )
@@ -817,7 +877,7 @@ export function AuthGate({
   ) {
     const message =
       authState.reason ===
-      'secure_storage_unavailable'
+        'secure_storage_unavailable'
         ? 'Kho lưu trữ bảo mật của hệ điều hành hiện không khả dụng.'
         : 'Dữ liệu phiên đăng nhập cục bộ không hợp lệ.'
 
@@ -840,23 +900,45 @@ export function AuthGate({
     'authenticated'
   ) {
     return (
-      <AuthenticatedWorkspace
-        deviceContext={
-          deviceContext
+      <PermissionGate
+        onSignedOut={
+          handlePermissionSignedOut
         }
-        session={
-          authState.session
+
+        onDeviceNotReady={
+          onDeviceNotReady
         }
-        logoutLoading={
-          logoutLoading
-        }
-        logoutError={
-          logoutError
-        }
-        onLogout={() =>
-          void handleLogout()
-        }
-      />
+      >
+        {(
+          permissionContext
+        ) => (
+          <AuthenticatedWorkspace
+            deviceContext={
+              deviceContext
+            }
+
+            session={
+              authState.session
+            }
+
+            permissionContext={
+              permissionContext
+            }
+
+            logoutLoading={
+              logoutLoading
+            }
+
+            logoutError={
+              logoutError
+            }
+
+            onLogout={() =>
+              void handleLogout()
+            }
+          />
+        )}
+      </PermissionGate>
     )
   }
 
@@ -1019,7 +1101,7 @@ export function AuthGate({
                     }
                     className={
                       index <
-                      pin.length
+                        pin.length
                         ? 'filled'
                         : ''
                     }
@@ -1030,17 +1112,17 @@ export function AuthGate({
 
             {lockRemaining >
               0 && (
-              <div className="auth-lockout">
-                Đăng nhập bị khóa.
-                Thử lại sau{' '}
-                <strong>
-                  {
-                    lockRemaining
-                  }s
-                </strong>
-                .
-              </div>
-            )}
+                <div className="auth-lockout">
+                  Đăng nhập bị khóa.
+                  Thử lại sau{' '}
+                  <strong>
+                    {
+                      lockRemaining
+                    }s
+                  </strong>
+                  .
+                </div>
+              )}
 
             {loginError && (
               <div className="auth-error">
@@ -1064,7 +1146,7 @@ export function AuthGate({
                     disabled={
                       loginLoading ||
                       lockRemaining >
-                        0
+                      0
                     }
                   >
                     {digit}
@@ -1159,7 +1241,7 @@ export function AuthGate({
         </div>
 
         {employees.length ===
-        0 ? (
+          0 ? (
           <div className="auth-empty">
             <strong>
               Chưa có nhân viên khả dụng
@@ -1245,30 +1327,33 @@ export function AuthGate({
 
 interface AuthenticatedWorkspaceProps {
   deviceContext:
-    DeviceContext
+  DeviceContext
 
   session:
-    AuthSessionResponse
+  AuthSessionResponse
 
   logoutLoading:
-    boolean
+  boolean
 
   logoutError:
-    string | null
+  string | null
 
+  permissionContext:
+  UiPermissionContext
   onLogout:
-    () => void
+  () => void
 }
 
 
 function AuthenticatedWorkspace({
   deviceContext,
   session,
+  permissionContext,
   logoutLoading,
   logoutError,
   onLogout
 }: AuthenticatedWorkspaceProps):
-React.JSX.Element {
+  React.JSX.Element {
   return (
     <main className="auth-page">
       <section className="auth-card auth-authenticated-card">
@@ -1351,8 +1436,36 @@ React.JSX.Element {
         </div>
 
         <div className="auth-workspace-ready">
-          Phiên nhân viên đã được xác thực.
-          POS hiện đã có Trusted Actor để sử dụng cho các thao tác nghiệp vụ.
+          <strong>
+            Trusted Actor + Permission Context đã sẵn sàng
+          </strong>
+
+          <br />
+
+          Nhân viên hiện có{' '}
+          <strong>
+            {
+              permissionContext
+                .permissions
+                .size
+            }
+          </strong>
+          {' '}quyền.
+
+          <br />
+
+          Quyền xem bàn:{' '}
+
+          <strong>
+            {
+              permissionContext
+                .hasPermission(
+                  'table.view'
+                )
+                ? 'Có'
+                : 'Không'
+            }
+          </strong>
         </div>
 
         {logoutError && (
@@ -1391,7 +1504,7 @@ function EmployeeAvatar({
   name,
   large = false
 }: EmployeeAvatarProps):
-React.JSX.Element {
+  React.JSX.Element {
   return (
     <span
       className={[
@@ -1424,7 +1537,7 @@ interface AuthStatusCardProps {
   buttonLabel?: string
 
   onButtonClick?:
-    () => void
+  () => void
 }
 
 
@@ -1436,7 +1549,7 @@ function AuthStatusCard({
   buttonLabel,
   onButtonClick
 }: AuthStatusCardProps):
-React.JSX.Element {
+  React.JSX.Element {
   return (
     <main className="auth-page">
       <section className="auth-card auth-status-card">
@@ -1460,16 +1573,16 @@ React.JSX.Element {
 
         {buttonLabel &&
           onButtonClick && (
-          <button
-            type="button"
-            className="auth-primary-button"
-            onClick={
-              onButtonClick
-            }
-          >
-            {buttonLabel}
-          </button>
-        )}
+            <button
+              type="button"
+              className="auth-primary-button"
+              onClick={
+                onButtonClick
+              }
+            >
+              {buttonLabel}
+            </button>
+          )}
       </section>
     </main>
   )

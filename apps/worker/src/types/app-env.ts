@@ -4,6 +4,10 @@ import type {
   DeviceContext
 } from '@billiards/contracts'
 
+import type {
+  PermissionContext
+} from './permission-context'
+
 
 export type AppBindings =
   CloudflareBindings & {
@@ -12,7 +16,8 @@ export type AppBindings =
 
 
 export type AppEnv = {
-  Bindings: AppBindings
+  Bindings:
+    AppBindings
 
   Variables: {
     deviceContext:
@@ -23,5 +28,8 @@ export type AppEnv = {
 
     authSession:
       AuthSessionResponse
+
+    permissionContext:
+      PermissionContext
   }
 }

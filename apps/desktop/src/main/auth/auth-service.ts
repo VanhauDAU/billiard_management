@@ -4,12 +4,14 @@ import type {
   DesktopAuthState,
   DesktopEmployeeListResult,
   DesktopLogoutResult,
-  DesktopPinLoginResult
+  DesktopPinLoginResult,
+  DesktopPermissionResult
 } from '../../shared/auth-api'
 
 import {
   BackendApiError,
   getAuthEmployees,
+  getAuthPermissions,
   getAuthSession,
   loginEmployeeWithPin,
   logoutAuthSession
@@ -157,6 +159,242 @@ export async function getDesktopAuthState(): Promise<DesktopAuthState> {
       status: 'unavailable',
 
       reason: 'backend_unavailable'
+    }
+  }
+}
+
+// =========================================================
+// PERMISSION CONTEXT
+// =========================================================
+
+export async function getDesktopAuthPermissions():
+Promise<DesktopPermissionResult> {
+  let deviceCredential
+
+  /*
+   * Step 1:
+   * Load the trusted Device credential.
+   */
+  try {
+    deviceCredential =
+      await loadDeviceCredential()
+  } catch (error) {
+    if (
+      hasErrorMessage(
+        error,
+        'secure_storage_unavailable'
+      )
+    ) {
+      return {
+        ok: false,
+
+        error:
+          'secure_storage_unavailable'
+      }
+    }
+
+    return {
+      ok: false,
+
+      error:
+        'device_not_ready'
+    }
+  }
+
+
+  /*
+   * A permission request can exist only
+   * after Device activation.
+   */
+  if (!deviceCredential) {
+    return {
+      ok: false,
+
+      error:
+        'device_not_ready'
+    }
+  }
+
+
+  let sessionCredential
+
+  /*
+   * Step 2:
+   * Load AuthSession credential from
+   * Electron secure storage.
+   */
+  try {
+    sessionCredential =
+      await loadAuthSessionCredential()
+  } catch (error) {
+    if (
+      hasErrorMessage(
+        error,
+        'secure_storage_unavailable'
+      )
+    ) {
+      return {
+        ok: false,
+
+        error:
+          'secure_storage_unavailable'
+      }
+    }
+
+
+    /*
+     * Corrupted AuthSession local state
+     * must not be trusted.
+     */
+    if (
+      hasErrorMessage(
+        error,
+        'invalid_auth_session_credential_file'
+      )
+    ) {
+      await deleteAuthSessionCredential()
+
+      return {
+        ok: false,
+
+        error:
+          'signed_out'
+      }
+    }
+
+
+    return {
+      ok: false,
+
+      error:
+        'backend_unavailable'
+    }
+  }
+
+
+  /*
+   * No local AuthSession means employee
+   * authentication is not active.
+   */
+  if (!sessionCredential) {
+    return {
+      ok: false,
+
+      error:
+        'signed_out'
+    }
+  }
+
+
+  /*
+   * An AuthSession credential belongs to
+   * exactly the Device that created it.
+   *
+   * If Device credential was rotated or
+   * changed, discard the old local session.
+   */
+  if (
+    sessionCredential.deviceId !==
+      deviceCredential.deviceId
+  ) {
+    await deleteAuthSessionCredential()
+
+    return {
+      ok: false,
+
+      error:
+        'signed_out'
+    }
+  }
+
+
+  /*
+   * Step 3:
+   * Main Process calls Worker with both:
+   *
+   * Authorization: Device ...
+   * X-Auth-Session: ...
+   *
+   * Renderer never sees either raw secret.
+   */
+  try {
+    const value =
+      await getAuthPermissions(
+        deviceCredential,
+
+        sessionCredential
+          .sessionToken
+      )
+
+    return {
+      ok: true,
+
+      value
+    }
+  } catch (error) {
+    /*
+     * Worker rejected the AuthSession.
+     *
+     * Local session must be deleted so the
+     * next UI state goes back to PIN login.
+     */
+    if (
+      error instanceof
+        BackendApiError
+    ) {
+      if (
+        error.status === 401 &&
+        (
+          error.code ===
+            'invalid_auth_session' ||
+
+          error.code ===
+            'auth_session_required'
+        )
+      ) {
+        await deleteAuthSessionCredential()
+
+        return {
+          ok: false,
+
+          error:
+            'signed_out'
+        }
+      }
+
+
+      /*
+       * Device itself is no longer trusted.
+       */
+      if (
+        isDeviceNotReadyError(
+          error
+        )
+      ) {
+        return {
+          ok: false,
+
+          error:
+            'device_not_ready'
+        }
+      }
+    }
+
+
+    /*
+     * Includes:
+     *
+     * - network timeout
+     * - authorization_unavailable
+     * - HTTP 5xx
+     * - malformed response
+     * - unknown backend failure
+     */
+    return {
+      ok: false,
+
+      error:
+        'backend_unavailable'
     }
   }
 }

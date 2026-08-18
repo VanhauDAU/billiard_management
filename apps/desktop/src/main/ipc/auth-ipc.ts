@@ -6,6 +6,7 @@ import { IPC_CHANNELS } from '../../shared/ipc-channels'
 
 import {
   getDesktopAuthEmployees,
+  getDesktopAuthPermissions,
   getDesktopAuthState,
   loginDesktopEmployee,
   logoutDesktopEmployee
@@ -31,6 +32,15 @@ export function registerAuthIpc(): void {
       assertTrustedIpcSender(event)
 
       return getDesktopAuthEmployees()
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.authGetPermissions,
+
+    async (event) => {
+      assertTrustedIpcSender(event)
+
+      return getDesktopAuthPermissions()
     }
   )
 

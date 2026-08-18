@@ -3,6 +3,7 @@ import type {
   DesktopAuthState,
   DesktopEmployeeListResult,
   DesktopLogoutResult,
+  DesktopPermissionResult,
   DesktopPinLoginInput,
   DesktopPinLoginResult
 } from '../shared/auth-api'
@@ -26,12 +27,22 @@ export interface DesktopApi {
     activate(input: ActivateDesktopDeviceInput): Promise<DesktopDeviceState>
   }
   auth: {
-    getState(): Promise<DesktopAuthState>
+    getState():
+      Promise<DesktopAuthState>
 
-    getEmployees(): Promise<DesktopEmployeeListResult>
+    getEmployees():
+      Promise<DesktopEmployeeListResult>
 
-    login(input: DesktopPinLoginInput): Promise<DesktopPinLoginResult>
+    getPermissions():
+      Promise<DesktopPermissionResult>
 
-    logout(): Promise<DesktopLogoutResult>
+    login(
+      input:
+        DesktopPinLoginInput
+    ):
+      Promise<DesktopPinLoginResult>
+
+    logout():
+      Promise<DesktopLogoutResult>
   }
 }

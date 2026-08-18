@@ -7,7 +7,8 @@ import {
   DeviceContextSchema,
   EmployeeListResponseSchema,
   LogoutResponseSchema,
-  PinLoginResponseSchema
+  PinLoginResponseSchema,
+  PermissionContextResponseSchema
 } from '@billiards/contracts'
 
 import type {
@@ -15,6 +16,7 @@ import type {
   ActivateDeviceResponse,
   ApiHealthResponse,
   AuthSessionResponse,
+  PermissionContextResponse,
   DeviceContext,
   EmployeeListResponse,
   LogoutResponse,
@@ -255,7 +257,45 @@ export async function getAuthSession(
 
   return parsed.data
 }
+export async function getAuthPermissions(
+  credential:
+    DeviceCredential,
 
+  sessionToken:
+    string
+): Promise<
+  PermissionContextResponse
+> {
+  const body =
+    await requestJson(
+      '/api/auth/permissions',
+      {
+        method: 'GET',
+
+        headers: {
+          Authorization:
+            getDeviceAuthorization(
+              credential
+            ),
+
+          'X-Auth-Session':
+            sessionToken
+        }
+      }
+    )
+
+  const parsed =
+    PermissionContextResponseSchema
+      .safeParse(body)
+
+  if (!parsed.success) {
+    throw new Error(
+      'invalid_permission_context_response'
+    )
+  }
+
+  return parsed.data
+}
 export async function logoutAuthSession(
   credential: DeviceCredential,
   sessionToken: string
