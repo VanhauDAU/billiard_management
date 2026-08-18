@@ -295,6 +295,174 @@ it(
   }
 )
 it(
+  'rotates credential when reactivating the same installation',
+  async () => {
+    const storeId =
+      'reactivation-store'
+
+    const installationId =
+      crypto.randomUUID()
+
+    const firstToken =
+      generateTestToken()
+
+    await createStore(storeId)
+
+    await createActivationToken(
+      storeId,
+      firstToken
+    )
+
+    async function activate(
+      activationToken: string
+    ) {
+      return exports.default.fetch(
+        new Request(
+          'https://example.test/api/devices/activate',
+          {
+            method: 'POST',
+
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+
+            body: JSON.stringify({
+              activationToken,
+
+              installationId,
+
+              name:
+                'POS Reactivation',
+
+              deviceType:
+                'desktop_pos',
+
+              platform:
+                'windows',
+
+              appVersion:
+                '0.0.0'
+            })
+          }
+        )
+      )
+    }
+
+    const firstResponse =
+      await activate(
+        firstToken
+      )
+
+    expect(
+      firstResponse.status
+    ).toBe(201)
+
+    const first =
+      await firstResponse.json<{
+        deviceId: string
+        deviceSecret: string
+      }>()
+
+    const secondToken =
+      generateTestToken()
+
+    await createActivationToken(
+      storeId,
+      secondToken
+    )
+
+    const secondResponse =
+      await activate(
+        secondToken
+      )
+
+    expect(
+      secondResponse.status
+    ).toBe(201)
+
+    const second =
+      await secondResponse.json<{
+        deviceId: string
+        deviceSecret: string
+      }>()
+
+    // Cùng installation => vẫn cùng device.
+    expect(
+      second.deviceId
+    ).toBe(
+      first.deviceId
+    )
+
+    // Nhưng secret phải được rotate.
+    expect(
+      second.deviceSecret
+    ).not.toBe(
+      first.deviceSecret
+    )
+
+    // Credential cũ không còn dùng được.
+    const oldCredentialResponse =
+      await exports.default.fetch(
+        new Request(
+          'https://example.test/api/pos/context',
+          {
+            headers: {
+              Authorization:
+                `Device ${first.deviceId}.${first.deviceSecret}`
+            }
+          }
+        )
+      )
+
+    expect(
+      oldCredentialResponse.status
+    ).toBe(401)
+
+    // Credential mới hoạt động.
+    const newCredentialResponse =
+      await exports.default.fetch(
+        new Request(
+          'https://example.test/api/pos/context',
+          {
+            headers: {
+              Authorization:
+                `Device ${second.deviceId}.${second.deviceSecret}`
+            }
+          }
+        )
+      )
+
+    expect(
+      newCredentialResponse.status
+    ).toBe(200)
+
+    const row =
+      await env.DB
+        .prepare(`
+          SELECT
+            credential_version
+
+          FROM devices
+
+          WHERE id = ?1
+        `)
+        .bind(
+          second.deviceId
+        )
+        .first<{
+          credential_version: number
+        }>()
+
+    expect(row)
+      .not.toBeNull()
+
+    expect(
+      row!.credential_version
+    ).toBe(2)
+  }
+)
+it(
   'consumes an activation token only once',
   async () => {
     const storeId =
