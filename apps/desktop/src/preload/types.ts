@@ -7,6 +7,11 @@ import type {
   DesktopPinLoginInput,
   DesktopPinLoginResult
 } from '../shared/auth-api'
+import type {
+  DesktopTableCommandInput,
+  DesktopTableCommandResult,
+  DesktopTableConfigurationResult
+} from '../shared/table-api'
 export interface BackendHealth {
   ok: boolean
   service: string
@@ -44,5 +49,19 @@ export interface DesktopApi {
 
     logout():
       Promise<DesktopLogoutResult>
+  }
+  tables: {
+    getConfiguration():
+      Promise<
+        DesktopTableConfigurationResult
+      >
+
+    executeCommand(
+      input:
+        DesktopTableCommandInput
+    ):
+      Promise<
+        DesktopTableCommandResult
+      >
   }
 }

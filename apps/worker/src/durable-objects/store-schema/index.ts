@@ -1,12 +1,55 @@
 import { migration001Foundation } from './migration-001-foundation'
 import type { StoreSchemaMigration } from './types'
-
+import {
+  migration002TableFoundation
+} from './migration-002-table-foundation'
 type MetadataRow = {
   value: string
 }
+type ForeignKeyPragmaRow = {
+  foreign_keys:
+    number
+}
 
-const migrations: StoreSchemaMigration[] = [
-  migration001Foundation
+
+function configureSqlite(
+  storage:
+    DurableObjectStorage
+): void {
+  /*
+   * SQLite foreign-key constraints must
+   * be active for every Store DO instance.
+   *
+   * Do not rely only on application checks
+   * for Table → TableType integrity.
+   */
+  storage.sql.exec(
+    'PRAGMA foreign_keys = ON'
+  )
+
+
+  const row =
+    storage.sql
+      .exec<ForeignKeyPragmaRow>(
+        'PRAGMA foreign_keys'
+      )
+      .toArray()[0]
+
+
+  if (
+    Number(
+      row?.foreign_keys ?? 0
+    ) !== 1
+  ) {
+    throw new Error(
+      'store_sqlite_foreign_keys_unavailable'
+    )
+  }
+}
+const migrations:
+StoreSchemaMigration[] = [
+  migration001Foundation,
+  migration002TableFoundation
 ]
 
 export const CURRENT_STORE_SCHEMA_VERSION =
@@ -84,11 +127,18 @@ function assertMigrationSequence(): void {
 }
 
 export function migrateStoreSchema(
-  storage: DurableObjectStorage
+  storage:
+    DurableObjectStorage
 ): void {
   assertMigrationSequence()
 
-  bootstrapMetadata(storage)
+  configureSqlite(
+    storage
+  )
+
+  bootstrapMetadata(
+    storage
+  )
 
   let version = getSchemaVersion(storage)
 

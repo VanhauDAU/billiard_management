@@ -8,7 +8,9 @@ import {
   EmployeeListResponseSchema,
   LogoutResponseSchema,
   PinLoginResponseSchema,
-  PermissionContextResponseSchema
+  PermissionContextResponseSchema,
+  TableCommandApiResponseSchema,
+  TableConfigurationResponseSchema
 } from '@billiards/contracts'
 
 import type {
@@ -21,7 +23,10 @@ import type {
   EmployeeListResponse,
   LogoutResponse,
   PinLoginRequest,
-  PinLoginResponse
+  PinLoginResponse,
+  TableCommandApiResponse,
+  TableConfigurationResponse,
+  TableManagementCommand
 } from '@billiards/contracts'
 
 const DEFAULT_TIMEOUT_MS = 5000
@@ -83,7 +88,16 @@ function getApiBaseUrl(): string {
   return url.toString().replace(/\/$/, '')
 }
 
-async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
+async function requestJson(
+    path:
+      string,
+
+    init?:
+      RequestInit,
+
+    acceptedErrorStatuses:
+      readonly number[] = []
+  ): Promise<unknown> {
   const controller = new AbortController()
 
   const timeout = setTimeout(() => {
@@ -111,7 +125,12 @@ async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
       body = null
     }
 
-    if (!response.ok) {
+    if (
+        !response.ok &&
+        !acceptedErrorStatuses.includes(
+          response.status
+        )
+      ) {
       const code =
         typeof body === 'object' &&
         body !== null &&
@@ -234,7 +253,123 @@ export async function loginEmployeeWithPin(
 
   return parsed.data
 }
+export async function getTableConfiguration(
+  credential:
+    DeviceCredential,
 
+  sessionToken:
+    string
+): Promise<
+  TableConfigurationResponse
+> {
+  const body =
+    await requestJson(
+      '/api/pos/tables/configuration',
+      {
+        method:
+          'GET',
+
+        headers: {
+          Authorization:
+            getDeviceAuthorization(
+              credential
+            ),
+
+          'X-Auth-Session':
+            sessionToken
+        }
+      }
+    )
+
+
+  const parsed =
+    TableConfigurationResponseSchema
+      .safeParse(
+        body
+      )
+
+
+  if (
+    !parsed.success
+  ) {
+    throw new Error(
+      'invalid_table_configuration_response'
+    )
+  }
+
+
+  return parsed.data
+}
+
+
+export async function executeTableCommand(
+  credential:
+    DeviceCredential,
+
+  sessionToken:
+    string,
+
+  command:
+    TableManagementCommand
+): Promise<
+  TableCommandApiResponse
+> {
+  const body =
+    await requestJson(
+      '/api/pos/tables/commands',
+
+      {
+        method:
+          'POST',
+
+        headers: {
+          Authorization:
+            getDeviceAuthorization(
+              credential
+            ),
+
+          'X-Auth-Session':
+            sessionToken,
+
+          'Content-Type':
+            'application/json'
+        },
+
+        body:
+          JSON.stringify(
+            command
+          )
+      },
+
+      /*
+       * These are expected business-result
+       * statuses, not transport failures.
+       */
+      [
+        404,
+        409
+      ]
+    )
+
+
+  const parsed =
+    TableCommandApiResponseSchema
+      .safeParse(
+        body
+      )
+
+
+  if (
+    !parsed.success
+  ) {
+    throw new Error(
+      'invalid_table_command_response'
+    )
+  }
+
+
+  return parsed.data
+}
 export async function getAuthSession(
   credential: DeviceCredential,
   sessionToken: string

@@ -1,0 +1,128 @@
+.table-page {
+  min-height: 100vh;
+  padding: 32px;
+  background: #f6f7f9;
+}
+
+.table-page-header,
+.table-section-heading,
+.billiard-table-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.table-page-header {
+  margin-bottom: 32px;
+}
+
+.table-header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.table-eyebrow {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.table-types-section,
+.tables-section {
+  margin-top: 28px;
+}
+
+.table-type-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.table-type-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 180px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.table-type-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.table-type-color {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.table-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      auto-fill,
+      minmax(220px, 1fr)
+    );
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.billiard-table-card {
+  padding: 18px;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.billiard-table-card h3 {
+  margin: 20px 0 4px;
+}
+
+.billiard-table-card p {
+  margin: 0 0 18px;
+  opacity: 0.65;
+}
+
+.table-status {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.table-status-active {
+  background: #ecfdf3;
+}
+
+.table-status-disabled {
+  background: #f3f4f6;
+}
+
+.table-empty-state,
+.table-status-card {
+  padding: 28px;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.table-spinner {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 16px;
+  border: 3px solid rgba(0, 0, 0, 0.15);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation:
+    table-spin 0.8s linear infinite;
+}
+
+@keyframes table-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

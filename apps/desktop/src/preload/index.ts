@@ -1,50 +1,115 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import {
+  contextBridge,
+  ipcRenderer
+} from 'electron'
 
-import { IPC_CHANNELS } from '../shared/ipc-channels'
+import {
+  IPC_CHANNELS
+} from '../shared/ipc-channels'
 
-import type { DesktopApi } from './types'
+import type {
+  DesktopApi
+} from './types'
 
-const desktopApi = Object.freeze({
-  app: Object.freeze({
-    getVersion: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.appGetVersion)
-  }),
 
-  backend: Object.freeze({
-    health: () => ipcRenderer.invoke(IPC_CHANNELS.backendHealth)
-  }),
+const desktopApi =
+  Object.freeze({
+    app:
+      Object.freeze({
+        getVersion:
+          (): Promise<string> =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.appGetVersion
+            )
+      }),
 
-  device: Object.freeze({
-    getState: () => ipcRenderer.invoke(IPC_CHANNELS.deviceGetState),
+    backend:
+      Object.freeze({
+        health:
+          () =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.backendHealth
+            )
+      }),
 
-    activate: (input) => ipcRenderer.invoke(IPC_CHANNELS.deviceActivate, input)
-  }),
-  auth: Object.freeze({
-    getState: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.authGetState
-      ),
+    device:
+      Object.freeze({
+        getState:
+          () =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.deviceGetState
+            ),
 
-    getEmployees: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.authGetEmployees
-      ),
+        activate:
+          (
+            input
+          ) =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.deviceActivate,
+              input
+            )
+      }),
 
-    getPermissions: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.authGetPermissions
-      ),
+    auth:
+      Object.freeze({
+        getState:
+          () =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.authGetState
+            ),
 
-    login: (input) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.authLogin,
-        input
-      ),
+        getEmployees:
+          () =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.authGetEmployees
+            ),
 
-    logout: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.authLogout
-      )
-  })
-}) satisfies DesktopApi
+        getPermissions:
+          () =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.authGetPermissions
+            ),
 
-contextBridge.exposeInMainWorld('desktopApi', desktopApi)
+        login:
+          (
+            input
+          ) =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.authLogin,
+              input
+            ),
+
+        logout:
+          () =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS.authLogout
+            )
+      }),
+
+    tables:
+      Object.freeze({
+        getConfiguration:
+          () =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS
+                .tablesGetConfiguration
+            ),
+
+        executeCommand:
+          (
+            input
+          ) =>
+            ipcRenderer.invoke(
+              IPC_CHANNELS
+                .tablesExecuteCommand,
+
+              input
+            )
+      })
+  }) satisfies DesktopApi
+
+
+contextBridge.exposeInMainWorld(
+  'desktopApi',
+  desktopApi
+)

@@ -24,5 +24,11 @@ export const IPC_CHANNELS = {
     'auth:login',
 
   authLogout:
-    'auth:logout'
+    'auth:logout',
+
+  tablesGetConfiguration:
+    'tables:get-configuration',
+
+  tablesExecuteCommand:
+    'tables:execute-command',
 } as const

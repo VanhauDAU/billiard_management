@@ -120,7 +120,13 @@ describe('StoreDurableObject SQLite', () => {
       )
 
       expect(metadata.store_id).toBe(storeId)
-      expect(metadata.schema_version).toBe('1')
+      expect(
+        metadata.schema_version
+      ).toBe(
+        String(
+          CURRENT_STORE_SCHEMA_VERSION
+        )
+      )
     })
   })
 

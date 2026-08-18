@@ -4,7 +4,9 @@ import {
   useMemo,
   useState
 } from 'react'
-
+import {
+  TableManagementScreen
+} from '../tables/TableManagementScreen'
 import type {
   AuthSessionResponse,
   DeviceContext,
@@ -913,6 +915,13 @@ export function AuthGate({
           permissionContext
         ) => (
           <AuthenticatedWorkspace
+            onSignedOut={
+              handlePermissionSignedOut
+            }
+
+            onDeviceNotReady={
+              onDeviceNotReady
+            }
             deviceContext={
               deviceContext
             }
@@ -1340,6 +1349,11 @@ interface AuthenticatedWorkspaceProps {
 
   permissionContext:
   UiPermissionContext
+  onSignedOut:
+  () => void | Promise<void>
+
+  onDeviceNotReady:
+  () => void | Promise<void>
   onLogout:
   () => void
 }
@@ -1351,6 +1365,8 @@ function AuthenticatedWorkspace({
   permissionContext,
   logoutLoading,
   logoutError,
+  onSignedOut,
+  onDeviceNotReady,
   onLogout
 }: AuthenticatedWorkspaceProps):
   React.JSX.Element {
@@ -1441,31 +1457,19 @@ function AuthenticatedWorkspace({
           </strong>
 
           <br />
-
-          Nhân viên hiện có{' '}
-          <strong>
-            {
+          <TableManagementScreen
+            permissionContext={
               permissionContext
-                .permissions
-                .size
             }
-          </strong>
-          {' '}quyền.
 
-          <br />
-
-          Quyền xem bàn:{' '}
-
-          <strong>
-            {
-              permissionContext
-                .hasPermission(
-                  'table.view'
-                )
-                ? 'Có'
-                : 'Không'
+            onSignedOut={
+              onSignedOut
             }
-          </strong>
+
+            onDeviceNotReady={
+              onDeviceNotReady
+            }
+          />
         </div>
 
         {logoutError && (
