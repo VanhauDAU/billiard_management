@@ -1,190 +1,135 @@
-import { Hono } from 'hono'
-import type {
-  ApiHealthResponse
-} from '@billiards/contracts'
+import { Hono } from "hono";
+import type { ApiHealthResponse } from "@billiards/contracts";
 
-import type {
-  AppEnv
-} from './types/app-env'
+import type { AppEnv } from "./types/app-env";
 
-import {
-  requireSystemDiagnostics
-} from './middleware/require-system-diagnostics'
+import { requireSystemDiagnostics } from "./middleware/require-system-diagnostics";
 
-import {
-  deviceRoutes
-} from './routes/devices'
+import { deviceRoutes } from "./routes/devices";
 
-import {
-  posRoutes
-} from './routes/pos'
+import { posRoutes } from "./routes/pos";
 
-export {
-  StoreDurableObject
-} from './durable-objects/store-durable-object'
+import { authRoutes } from "./routes/auth";
 
-const app =
-  new Hono<AppEnv>()
+export { StoreDurableObject } from "./durable-objects/store-durable-object";
 
-app.get('/', (c) => {
+const app = new Hono<AppEnv>();
+
+app.get("/", (c) => {
   return c.json({
     ok: true,
-    service: 'billiards-api',
-    message: 'Billiards API is running'
-  })
-})
+    service: "billiards-api",
+    message: "Billiards API is running",
+  });
+});
 
-app.get('/api/health', (c) => {
+app.get("/api/health", (c) => {
   const response: ApiHealthResponse = {
     ok: true,
-    service: 'billiards-api'
-  }
+    service: "billiards-api",
+  };
 
-  return c.json(response)
-})
+  return c.json(response);
+});
 
-app.use(
-  '/api/system/*',
-  requireSystemDiagnostics
-)
+app.use("/api/system/*", requireSystemDiagnostics);
 
-app.get(
-  '/api/system/db-health',
-  async (c) => {
-    try {
-      const migration = await c.env.DB
-        .prepare(`
+app.get("/api/system/db-health", async (c) => {
+  try {
+    const migration = await c.env.DB.prepare(
+      `
           SELECT name
           FROM d1_migrations
           ORDER BY id DESC
           LIMIT 1
-        `)
-        .first<{
-          name: string
-        }>()
+        `,
+    ).first<{
+      name: string;
+    }>();
 
-      return c.json({
-        ok: true,
-        database: 'd1',
-        latestMigration:
-          migration?.name ?? null
-      })
-    } catch (error) {
-      console.error(
-        'D1 health check failed:',
-        error
-      )
+    return c.json({
+      ok: true,
+      database: "d1",
+      latestMigration: migration?.name ?? null,
+    });
+  } catch (error) {
+    console.error("D1 health check failed:", error);
 
-      return c.json(
-        {
-          ok: false,
-          database: 'd1',
-          error:
-            'database_unavailable'
-        },
-        503
-      )
-    }
+    return c.json(
+      {
+        ok: false,
+        database: "d1",
+        error: "database_unavailable",
+      },
+      503,
+    );
   }
-)
+});
 
-app.get(
-  '/api/system/stores/:storeId/do-health',
-  async (c) => {
-    const storeId =
-      c.req.param('storeId')
+app.get("/api/system/stores/:storeId/do-health", async (c) => {
+  const storeId = c.req.param("storeId");
 
-    try {
-      const store = await c.env.DB
-        .prepare(`
+  try {
+    const store = await c.env.DB.prepare(
+      `
           SELECT id, status
           FROM stores
           WHERE id = ?
           LIMIT 1
-        `)
-        .bind(storeId)
-        .first<{
-          id: string
-          status: string
-        }>()
+        `,
+    )
+      .bind(storeId)
+      .first<{
+        id: string;
+        status: string;
+      }>();
 
-      if (!store) {
-        return c.json(
-          {
-            ok: false,
-            error:
-              'store_not_found'
-          },
-          404
-        )
-      }
-
-      const durableObjectId =
-        c.env.STORE_DO
-          .idFromName(storeId)
-
-      const stub =
-        c.env.STORE_DO
-          .get(durableObjectId)
-
-      const response = await stub.fetch(
-        new Request(
-          'https://store-do/health',
-          {
-            headers: {
-              'x-store-id':
-                storeId
-            }
-          }
-        )
-      )
-
-      const data =
-        await response.json()
-
-      if (!response.ok) {
-        return c.json(
-          data as Record<
-            string,
-            unknown
-          >,
-          503
-        )
-      }
-
-      return c.json(
-        data as Record<
-          string,
-          unknown
-        >,
-        200
-      )
-    } catch (error) {
-      console.error(
-        'Store DO gateway health failed:',
-        error
-      )
-
+    if (!store) {
       return c.json(
         {
           ok: false,
-          error:
-            'store_do_unavailable'
+          error: "store_not_found",
         },
-        503
-      )
+        404,
+      );
     }
+
+    const durableObjectId = c.env.STORE_DO.idFromName(storeId);
+
+    const stub = c.env.STORE_DO.get(durableObjectId);
+
+    const response = await stub.fetch(
+      new Request("https://store-do/health", {
+        headers: {
+          "x-store-id": storeId,
+        },
+      }),
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return c.json(data as Record<string, unknown>, 503);
+    }
+
+    return c.json(data as Record<string, unknown>, 200);
+  } catch (error) {
+    console.error("Store DO gateway health failed:", error);
+
+    return c.json(
+      {
+        ok: false,
+        error: "store_do_unavailable",
+      },
+      503,
+    );
   }
-)
+});
 
-app.route(
-  '/api/devices',
-  deviceRoutes
-)
+app.route("/api/devices", deviceRoutes);
 
-app.route(
-  '/api/pos',
-  posRoutes
-)
+app.route("/api/pos", posRoutes);
 
-export default app
+app.route("/api/auth", authRoutes);
+
+export default app;
